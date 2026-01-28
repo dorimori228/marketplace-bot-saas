@@ -1,0 +1,344 @@
+#!/usr/bin/env python3
+"""
+Comprehensive test script for all new unique content features.
+"""
+
+import os
+import sys
+from image_cropper import ImageCropper
+from title_variator import TitleVariator
+from description_variator import DescriptionVariator
+from original_storage import OriginalStorage
+
+def test_image_cropping():
+    """Test image cropping functionality."""
+    print("🧪 Testing Image Cropping")
+    print("=" * 40)
+    
+    cropper = ImageCropper()
+    
+    # Find test images
+    test_images = []
+    for root, dirs, files in os.walk('accounts'):
+        for file in files:
+            if file.lower().endswith(('.jpg', '.jpeg', '.png')):
+                test_images.append(os.path.join(root, file))
+                if len(test_images) >= 2:
+                    break
+        if len(test_images) >= 2:
+            break
+    
+    if not test_images:
+        print("❌ No test images found")
+        print("💡 Add some images to the accounts directory to test")
+        return False
+    
+    print(f"📸 Found {len(test_images)} test images")
+    
+    # Test cropping
+    for image_path in test_images[:2]:  # Test first 2 images
+        print(f"\n🔄 Testing crop for: {os.path.basename(image_path)}")
+        result = cropper.get_best_crop(image_path)
+        
+        if result['success']:
+            print(f"✅ Best crop created: {result['cropped_size']} (from {result['original_size']})")
+            print(f"   📊 Area: {result['area_ratio']} of original")
+            print(f"   🎯 Strategy: {result['strategy']}")
+            
+            # Check if output file exists
+            if os.path.exists(result['output_path']):
+                print(f"   📁 Output file exists: {os.path.basename(result['output_path'])}")
+            else:
+                print(f"   ❌ Output file missing: {result['output_path']}")
+                return False
+        else:
+            print(f"❌ Failed to create crop: {result['error']}")
+            return False
+    
+    return True
+
+def test_title_variation():
+    """Test title variation functionality."""
+    print("\n🧪 Testing Title Variation")
+    print("=" * 40)
+    
+    variator = TitleVariator()
+    
+    # Test titles
+    test_titles = [
+        "40mm artificial grass rolls to thick 40mm artificial grass rolls",
+        "Premium Artificial Grass 4m x 2m",
+        "High Quality Garden Turf - Fast Delivery"
+    ]
+    
+    for title in test_titles:
+        print(f"\n🔄 Testing variations for: {title}")
+        
+        # Generate multiple variations
+        variations = variator.generate_multiple_variations(title, 3)
+        
+        for i, variation in enumerate(variations, 1):
+            if variation['success']:
+                print(f"  {i}. {variation['variation']} ({variation['type']})")
+            else:
+                print(f"  {i}. Error: {variation['error']}")
+                return False
+    
+    return True
+
+def test_description_variation():
+    """Test description variation functionality."""
+    print("\n🧪 Testing Description Variation")
+    print("=" * 40)
+    
+    variator = DescriptionVariator()
+    
+    # Test description
+    test_description = """🚚 Fast Delivery: 2-4 days
+✅ Free Samples Available
+
+💷 Options Available:
+- Budget Range (30mm)
+- Mid-Range (35mm)
+- Premium Range (40mm)"""
+    
+    print(f"🔄 Testing variations for description:")
+    print(f"Original: {test_description[:100]}...")
+    
+    # Generate multiple variations
+    variations = variator.generate_multiple_variations(test_description, 3)
+    
+    for i, variation in enumerate(variations, 1):
+        if variation['success']:
+            print(f"\nVariation {i} ({variation['type']}):")
+            print(variation['variation'][:200] + "..." if len(variation['variation']) > 200 else variation['variation'])
+        else:
+            print(f"Variation {i}. Error: {variation['error']}")
+            return False
+    
+    return True
+
+def test_original_storage():
+    """Test original storage functionality."""
+    print("\n🧪 Testing Original Storage")
+    print("=" * 40)
+    
+    storage = OriginalStorage()
+    test_account = "test_account"
+    
+    # Test creating storage
+    print(f"🔄 Creating storage for account: {test_account}")
+    result = storage.create_account_storage(test_account)
+    if not result:
+        print("❌ Failed to create account storage")
+        return False
+    print("✅ Account storage created successfully")
+    
+    # Test storing title
+    test_title = "40mm artificial grass rolls to thick 40mm artificial grass rolls"
+    print(f"🔄 Storing title: {test_title}")
+    result = storage.store_original_title(test_account, test_title)
+    if not result['success']:
+        print(f"❌ Failed to store title: {result['error']}")
+        return False
+    print(f"✅ Title stored: {result['message']}")
+    
+    # Test finding matching title
+    print(f"🔄 Finding matching title for: {test_title}")
+    match = storage.find_matching_original(test_account, test_title)
+    if not match:
+        print("❌ No matching title found")
+        return False
+    print(f"✅ Found matching title: {match['title']}")
+    
+    return True
+
+def test_integration():
+    """Test integration of all features."""
+    print("\n🧪 Testing Integration")
+    print("=" * 40)
+    
+    # Test account
+    test_account = "integration_test"
+    
+    # Initialize modules
+    cropper = ImageCropper()
+    title_variator = TitleVariator()
+    description_variator = DescriptionVariator()
+    storage = OriginalStorage()
+    
+    # Test title variation with storage
+    original_title = "40mm artificial grass rolls to thick 40mm artificial grass rolls"
+    print(f"🔄 Testing title variation for: {original_title}")
+    
+    # Generate variation
+    variation_result = title_variator.get_next_title_variation(test_account, original_title)
+    
+    if not variation_result['success']:
+        print(f"❌ Failed to generate title variation: {variation_result['error']}")
+        return False
+    
+    print(f"✅ Generated variation: {variation_result['variation']}")
+    print(f"   📝 Type: {variation_result['type']}")
+    
+    # Test description variation
+    original_description = """🚚 Fast Delivery: 2-4 days
+✅ Free Samples Available
+
+💷 Options Available:
+- Budget Range (30mm)
+- Mid-Range (35mm)
+- Premium Range (40mm)"""
+    
+    print(f"\n🔄 Testing description variation...")
+    desc_variation = description_variator.get_next_description_variation(test_account, original_description)
+    
+    if not desc_variation['success']:
+        print(f"❌ Failed to generate description variation: {desc_variation['error']}")
+        return False
+    
+    print(f"✅ Generated description variation")
+    print(f"   📝 Type: {desc_variation['type']}")
+    
+    # Store original content
+    storage.store_original_title(test_account, original_title)
+    storage.store_original_title(test_account, original_description, listing_id="description")
+    print("✅ Original content stored")
+    
+    # Test finding match
+    match = storage.find_matching_original(test_account, original_title)
+    if not match:
+        print("❌ Could not find stored title")
+        return False
+    print(f"✅ Found stored title: {match['title']}")
+    
+    return True
+
+def test_image_processing_pipeline():
+    """Test the complete image processing pipeline."""
+    print("\n🧪 Testing Image Processing Pipeline")
+    print("=" * 40)
+    
+    # Find test images
+    test_images = []
+    for root, dirs, files in os.walk('accounts'):
+        for file in files:
+            if file.lower().endswith(('.jpg', '.jpeg', '.png')):
+                test_images.append(os.path.join(root, file))
+                if len(test_images) >= 1:
+                    break
+        if len(test_images) >= 1:
+            break
+    
+    if not test_images:
+        print("❌ No test images found for pipeline test")
+        return False
+    
+    print(f"📸 Testing pipeline with: {os.path.basename(test_images[0])}")
+    
+    # Test cropping
+    cropper = ImageCropper()
+    crop_result = cropper.get_best_crop(test_images[0])
+    
+    if not crop_result['success']:
+        print(f"❌ Cropping failed: {crop_result['error']}")
+        return False
+    
+    print(f"✅ Crop successful: {crop_result['cropped_size']}")
+    
+    # Check if cropped file exists
+    if not os.path.exists(crop_result['output_path']):
+        print(f"❌ Cropped file does not exist: {crop_result['output_path']}")
+        return False
+    
+    print(f"✅ Cropped file exists: {os.path.basename(crop_result['output_path'])}")
+    
+    # Test metadata modification (if available)
+    try:
+        from image_metadata import ImageMetadataModifier
+        metadata_modifier = ImageMetadataModifier()
+        
+        # Create a test output path
+        import os
+        test_output = crop_result['output_path'].replace('.', '_metadata.')
+        
+        result = metadata_modifier.modify_image_metadata(crop_result['output_path'], test_output)
+        
+        if result['success']:
+            print(f"✅ Metadata modification successful")
+            print(f"   📍 Location: {result['location']['name']}")
+            print(f"   📅 Date: {result['timestamp']}")
+            
+            # Check if metadata file exists
+            if os.path.exists(test_output):
+                print(f"✅ Metadata file exists: {os.path.basename(test_output)}")
+            else:
+                print(f"❌ Metadata file missing: {test_output}")
+                return False
+        else:
+            print(f"⚠️ Metadata modification failed: {result['error']}")
+            print("   (This is optional, continuing with crop test)")
+    
+    except ImportError:
+        print("⚠️ Image metadata module not available, skipping metadata test")
+    
+    return True
+
+def main():
+    """Run all tests."""
+    print("🚀 Complete Feature Test Suite")
+    print("=" * 50)
+    
+    tests = [
+        ("Image Cropping", test_image_cropping),
+        ("Title Variation", test_title_variation),
+        ("Description Variation", test_description_variation),
+        ("Original Storage", test_original_storage),
+        ("Integration", test_integration),
+        ("Image Processing Pipeline", test_image_processing_pipeline)
+    ]
+    
+    results = []
+    
+    for test_name, test_func in tests:
+        try:
+            print(f"\n🔄 Running: {test_name}")
+            result = test_func()
+            results.append((test_name, result))
+            if result:
+                print(f"✅ {test_name} passed")
+            else:
+                print(f"❌ {test_name} failed")
+        except Exception as e:
+            print(f"❌ {test_name} error: {e}")
+            results.append((test_name, False))
+    
+    # Summary
+    print("\n📊 Test Results Summary")
+    print("=" * 30)
+    passed = sum(1 for _, result in results if result)
+    total = len(results)
+    
+    for test_name, result in results:
+        status = "✅ PASS" if result else "❌ FAIL"
+        print(f"{test_name}: {status}")
+    
+    print(f"\nOverall: {passed}/{total} tests passed")
+    
+    if passed == total:
+        print("🎉 All tests passed! All features are working correctly.")
+        print("\n📋 What this means:")
+        print("✅ Images will be cropped to create unique versions")
+        print("✅ Titles will be varied to avoid duplicates")
+        print("✅ Descriptions will be varied to avoid duplicates")
+        print("✅ Original content will be stored for future reference")
+        print("✅ The bot will create truly unique content for each upload")
+    else:
+        print("⚠️ Some tests failed. Please check the errors above.")
+        print("\n🔧 Troubleshooting:")
+        print("- Make sure you have images in the accounts directory")
+        print("- Check that all required modules are installed")
+        print("- Verify file permissions for the accounts directory")
+
+if __name__ == "__main__":
+    main()

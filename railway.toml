@@ -1,0 +1,26 @@
+# Railway.toml - Configuration for Railway deployment
+# https://docs.railway.app/deploy/config-as-code
+
+[build]
+builder = "nixpacks"
+buildCommand = "pip install -r requirements_cloud.txt"
+
+[deploy]
+startCommand = "gunicorn app_cloud:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120"
+healthcheckPath = "/health"
+healthcheckTimeout = 100
+restartPolicyType = "on-failure"
+restartPolicyMaxRetries = 3
+
+# Services Configuration
+[[services]]
+name = "web"
+# Main Flask application
+command = "gunicorn app_cloud:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120"
+
+[[services]]
+name = "worker"
+# Celery worker for background tasks
+command = "celery -A tasks.listing_tasks worker --loglevel=info --concurrency=2"
+
+# Note: Railway will auto-provision PostgreSQL and Redis if you add them in the dashboard

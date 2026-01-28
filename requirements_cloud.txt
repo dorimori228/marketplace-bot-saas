@@ -1,0 +1,73 @@
+# Core Flask dependencies
+Flask==3.0.0
+Flask-SQLAlchemy==3.1.1
+Flask-Migrate==4.0.5
+Flask-CORS==4.0.0
+Flask-JWT-Extended==4.6.0
+
+# Database
+psycopg2-binary==2.9.9  # PostgreSQL adapter
+SQLAlchemy==2.0.23
+
+# Task Queue
+celery==5.3.4
+redis==5.0.1
+
+# Payments
+stripe==7.8.0
+
+# Security & Encryption
+cryptography==41.0.7  # For Fernet cookie encryption
+werkzeug==3.0.1  # Password hashing
+PyJWT==2.8.0
+
+# Selenium & Browser Automation (existing)
+selenium>=4.15.0
+undetected-chromedriver>=3.5.0
+webdriver-manager>=4.0.1
+
+# Image Processing (existing)
+Pillow>=10.0.0
+piexif>=1.1.3
+
+# AI Features (existing - OpenAI)
+openai>=1.0.0
+
+# Cloud Storage (for images)
+boto3==1.34.13  # AWS S3
+# OR
+# cloudinary==1.36.0  # Cloudinary (alternative)
+
+# Email
+# sendgrid==6.11.0  # For transactional emails (optional)
+
+# Monitoring & Logging
+# sentry-sdk[flask]==1.39.1  # Error tracking (optional)
+
+# Production Server
+gunicorn==21.2.0  # WSGI server for production
+
+# Utilities
+python-dotenv==1.0.0  # Environment variables
+requests==2.31.0
+
+# Rate Limiting
+Flask-Limiter==3.5.0
+
+# API Documentation (optional)
+# flask-restx==1.3.0
+# flasgger==0.9.7.1
+
+# Development Tools (optional - don't install in production)
+# pytest==7.4.3
+# pytest-flask==1.3.0
+# black==23.12.1
+# flake8==6.1.0
+
+# Note: For Railway/Heroku deployment, you may need:
+# - Procfile (for process definition)
+# - runtime.txt (for Python version)
+# - railway.toml (for Railway-specific config)
+
+# Python Version: 3.11+
+# Ensure your cloud platform supports Python 3.11 or adjust accordingly

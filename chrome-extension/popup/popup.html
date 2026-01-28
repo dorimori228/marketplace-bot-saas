@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Facebook Marketplace Automation</title>
+    <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+    <!-- Loading Screen -->
+    <div id="loading-screen" class="loading-screen">
+        <div class="spinner"></div>
+        <p>Loading...</p>
+    </div>
+
+    <!-- Login/Register Screen -->
+    <div id="auth-screen" class="screen" style="display: none;">
+        <div class="header">
+            <h1>🐼 PandaBay</h1>
+            <p class="subtitle">Facebook Marketplace Automation</p>
+        </div>
+
+        <div class="auth-container">
+            <div class="tabs">
+                <button class="tab-btn active" data-tab="login">Login</button>
+                <button class="tab-btn" data-tab="register">Register</button>
+            </div>
+
+            <!-- Login Form -->
+            <form id="login-form" class="auth-form">
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" id="login-email" required>
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="login-password" required>
+                </div>
+                <button type="submit" class="btn btn-primary">Login</button>
+            </form>
+
+            <!-- Register Form -->
+            <form id="register-form" class="auth-form" style="display: none;">
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" id="register-email" required>
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="register-password" required>
+                </div>
+                <button type="submit" class="btn btn-primary">Create Account</button>
+            </form>
+        </div>
+
+        <div class="footer-link">
+            <a href="#" id="visit-website">Visit our website</a>
+        </div>
+    </div>
+
+    <!-- Main Dashboard Screen -->
+    <div id="dashboard-screen" class="screen" style="display: none;">
+        <!-- Header with User Info -->
+        <div class="dashboard-header">
+            <div class="user-info">
+                <span id="user-email"></span>
+                <button id="logout-btn" class="btn-icon" title="Logout">🚪</button>
+            </div>
+            <div class="tier-badge" id="tier-badge">
+                <span class="tier-name">Free</span>
+            </div>
+        </div>
+
+        <!-- Usage Meter -->
+        <div class="usage-section">
+            <h3>Monthly Usage</h3>
+            <div class="usage-bar-container">
+                <div class="usage-bar" id="usage-bar"></div>
+            </div>
+            <p class="usage-text" id="usage-text">0 / 0 listings</p>
+            <button id="upgrade-btn" class="btn btn-secondary" style="display: none;">Upgrade Plan</button>
+        </div>
+
+        <!-- Account Selector -->
+        <div class="section">
+            <label>Facebook Account</label>
+            <select id="account-selector" class="select-input">
+                <option value="">Select account...</option>
+            </select>
+            <button id="add-account-btn" class="btn btn-secondary">+ Add Account</button>
+        </div>
+
+        <!-- Create Listing Form -->
+        <div class="section">
+            <h3>Create Listing</h3>
+            <form id="listing-form">
+                <div class="form-group">
+                    <label>Title</label>
+                    <input type="text" id="listing-title" placeholder="e.g., Carpet Rolls - High Quality" required>
+                </div>
+
+                <div class="form-group">
+                    <label>Price (£)</label>
+                    <input type="text" id="listing-price" placeholder="e.g., 10" required>
+                </div>
+
+                <div class="form-group">
+                    <label>Description</label>
+                    <textarea id="listing-description" rows="4" placeholder="Describe your product..."></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label>Category</label>
+                    <input type="text" id="listing-category" placeholder="e.g., Home & Garden">
+                </div>
+
+                <div class="form-group">
+                    <label>Location</label>
+                    <input type="text" id="listing-location" placeholder="e.g., London, UK">
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-full">Create Listing</button>
+            </form>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="section">
+            <h3>Quick Actions</h3>
+            <div class="action-buttons">
+                <button id="batch-relist-btn" class="btn btn-secondary" disabled>
+                    <span class="lock-icon">🔒</span> Batch Relist
+                </button>
+                <button id="templates-btn" class="btn btn-secondary" disabled>
+                    <span class="lock-icon">🔒</span> Templates
+                </button>
+                <button id="analytics-btn" class="btn btn-secondary">📊 Analytics</button>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <button id="settings-btn" class="btn-text">⚙️ Settings</button>
+            <a href="#" id="support-link" class="btn-text">❓ Support</a>
+        </div>
+    </div>
+
+    <!-- Add Account Modal -->
+    <div id="add-account-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <h3>Add Facebook Account</h3>
+            <p>Make sure you're logged into Facebook in this browser, then click "Auto-Detect Cookies".</p>
+
+            <div class="form-group">
+                <label>Account Name</label>
+                <input type="text" id="new-account-name" placeholder="e.g., My Main Account">
+            </div>
+
+            <div class="modal-actions">
+                <button id="auto-detect-cookies-btn" class="btn btn-primary">Auto-Detect Cookies</button>
+                <button id="cancel-add-account-btn" class="btn btn-secondary">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="notification-toast" class="toast" style="display: none;">
+        <span id="notification-message"></span>
+    </div>
+
+    <script src="popup.js"></script>
+</body>
+</html>

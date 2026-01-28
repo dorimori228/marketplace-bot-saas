@@ -1,0 +1,6 @@
+flask
+selenium>=4.15.0
+undetected-chromedriver>=3.5.0
+webdriver-manager
+Pillow>=10.0.0
+piexif>=1.1.3
