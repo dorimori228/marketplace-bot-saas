@@ -233,8 +233,8 @@ class UsageLog(db.Model):
     action_type = db.Column(db.String(50), nullable=False, index=True)  # listing_created, listing_deleted, ai_generation, etc.
     listing_id = db.Column(db.Integer, db.ForeignKey('listings.id', ondelete='SET NULL'))
 
-    # Metadata
-    metadata = db.Column(db.JSON)  # Additional context
+    # Action data
+    action_data = db.Column(db.JSON)  # Additional context
 
     timestamp = db.Column(db.DateTime, default=datetime.utcnow, nullable=False, index=True)
 
@@ -250,7 +250,7 @@ class UsageLog(db.Model):
             'id': self.id,
             'action_type': self.action_type,
             'listing_id': self.listing_id,
-            'metadata': self.metadata,
+            'action_data': self.action_data,
             'timestamp': self.timestamp.isoformat() if self.timestamp else None
         }
 
