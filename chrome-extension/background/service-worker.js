@@ -114,7 +114,7 @@ async function syncCookiesWithBackend(accountId) {
         }
 
         // Send to backend
-        const API_URL = 'http://localhost:5000/api';  // Change when deployed
+        const API_URL = 'https://web-production-cc17c.up.railway.app/api';
         const response = await fetch(`${API_URL}/accounts/${accountId}/sync-cookies`, {
             method: 'POST',
             headers: {

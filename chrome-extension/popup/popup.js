@@ -4,8 +4,7 @@
  */
 
 // API Configuration
-const API_URL = 'http://localhost:5000/api';  // Change to your cloud URL when deployed
-// const API_URL = 'https://your-app.railway.app/api';
+const API_URL = 'https://web-production-cc17c.up.railway.app/api';
 
 // State
 let currentUser = null;
@@ -78,6 +77,13 @@ async function apiCall(endpoint, method = 'GET', data = null) {
 
     try {
         const response = await fetch(`${API_URL}${endpoint}`, options);
+        const contentType = response.headers.get('content-type') || '';
+
+        if (!contentType.includes('application/json')) {
+            const text = await response.text();
+            throw new Error(`API returned non-JSON (${response.status}): ${text.slice(0, 120)}`);
+        }
+
         const result = await response.json();
 
         if (!response.ok) {
@@ -143,6 +149,7 @@ async function loadUser() {
         showScreen('dashboard');
     } catch (error) {
         console.error('Failed to load user:', error);
+        showNotification(error.message || 'Failed to load user profile', 'error');
         showScreen('auth');
     }
 }

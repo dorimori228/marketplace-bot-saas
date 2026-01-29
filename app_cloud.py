@@ -3,11 +3,12 @@ Cloud Flask Application for Facebook Marketplace Bot SaaS
 Multi-tenant API with authentication, subscriptions, and feature gating.
 """
 
-from flask import Flask, request, jsonify, g
+from flask import Flask, request, jsonify, g, send_from_directory
+from werkzeug.exceptions import HTTPException
 from flask_cors import CORS
 from flask_jwt_extended import (
     JWTManager, create_access_token, create_refresh_token,
-    jwt_required, get_jwt_identity, get_jwt
+    jwt_required, get_jwt_identity, get_jwt, verify_jwt_in_request
 )
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
@@ -25,7 +26,26 @@ from config.subscription_tiers import get_all_tiers, format_tier_comparison
 app = Flask(__name__)
 
 # Configuration
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'postgresql://localhost/marketplace_bot')
+def _get_database_url():
+    """Pick the first non-empty database URL from common Railway env vars."""
+    candidate_keys = [
+        'DATABASE_URL',
+        'DATABASE_PUBLIC_URL',
+        'DATABASE_PRIVATE_URL',
+        'POSTGRES_URL',
+        'POSTGRESQL_URL',
+        'DATABASE_URI',
+        'SQLALCHEMY_DATABASE_URI'
+    ]
+    for key in candidate_keys:
+        value = os.getenv(key)
+        if value and value.strip():
+            print(f"✅ Using database URL from {key}")
+            return value.strip()
+    print("⚠️ DATABASE_URL is empty; falling back to local postgres")
+    return 'postgresql://localhost/marketplace_bot'
+
+app.config['SQLALCHEMY_DATABASE_URI'] = _get_database_url()
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', 'change-this-in-production')
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=24)
@@ -34,6 +54,17 @@ app.config['JWT_REFRESH_TOKEN_EXPIRES'] = timedelta(days=30)
 # Initialize extensions
 db.init_app(app)
 jwt = JWTManager(app)
+
+# ==================== ERROR HANDLING ====================
+
+@app.errorhandler(Exception)
+def handle_exception(error):
+    """Return JSON for unhandled exceptions."""
+    if isinstance(error, HTTPException):
+        return jsonify({'error': error.description}), error.code
+    print(f"⚠️ Unhandled exception: {error}")
+    return jsonify({'error': 'Internal server error'}), 500
+
 
 # CORS - Allow all origins (Chrome extensions don't send standard Origin headers)
 CORS(app, resources={r"/api/*": {"origins": "*"}}, supports_credentials=True)
@@ -56,19 +87,36 @@ def user_lookup_callback(_jwt_header, jwt_data):
     return User.query.filter_by(id=identity).first()
 
 
+tables_initialized = False
+
+def _ensure_tables():
+    """Create tables on demand if missing."""
+    global tables_initialized
+    if tables_initialized:
+        return
+    try:
+        from sqlalchemy import inspect
+        inspector = inspect(db.engine)
+        if not inspector.has_table('users'):
+            print("🛠️ Creating database tables...")
+            db.create_all()
+        tables_initialized = True
+    except Exception as e:
+        print(f"⚠️ Table initialization failed: {e}")
+
+
 @app.before_request
 def load_user():
     """Load current user into g if authenticated."""
-    try:
-        if request.headers.get('Authorization'):
-            user_id = get_jwt_identity()
-            if user_id:
-                g.current_user = User.query.get(user_id)
-                return
-    except:
-        pass
-
+    _ensure_tables()
     g.current_user = None
+    try:
+        verify_jwt_in_request(optional=True)
+        user_id = get_jwt_identity()
+        if user_id:
+            g.current_user = User.query.get(user_id)
+    except Exception:
+        g.current_user = None
 
 
 # ==================== HEALTH CHECK ====================
@@ -80,6 +128,15 @@ def health_check():
         'status': 'healthy',
         'timestamp': datetime.utcnow().isoformat()
     })
+
+
+# ==================== STATIC ASSETS ====================
+
+@app.route('/static/logo/<path:filename>')
+def serve_logo(filename):
+    """Serve logo files for the extension UI."""
+    logo_dir = os.path.join(os.getcwd(), 'logo')
+    return send_from_directory(logo_dir, filename)
 
 
 # ==================== AUTHENTICATION ====================
@@ -172,7 +229,13 @@ def refresh():
 @jwt_required()
 def get_current_user():
     """Get current user info."""
-    user = g.current_user
+    user_id = get_jwt_identity()
+    if not user_id:
+        return jsonify({'error': 'Invalid or expired token'}), 401
+
+    user = User.query.get(user_id)
+    if not user:
+        return jsonify({'error': 'Invalid or expired token'}), 401
 
     return jsonify({
         'user': user.to_dict(),
