@@ -26,6 +26,9 @@ class User(db.Model):
     subscription_status = db.Column(db.String(20), default='inactive')  # inactive, active, past_due, canceled
     subscription_expires_at = db.Column(db.DateTime)
 
+    # Admin flag
+    is_admin = db.Column(db.Boolean, default=False)
+
     # Account metadata
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
@@ -47,6 +50,7 @@ class User(db.Model):
             'email': self.email,
             'subscription_tier': self.subscription_tier,
             'subscription_status': self.subscription_status,
+            'is_admin': self.is_admin or False,
             'created_at': self.created_at.isoformat() if self.created_at else None
         }
 

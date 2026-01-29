@@ -184,6 +184,10 @@ def register():
         return jsonify({'error': f'Registration failed: {str(e)}'}), 500
 
 
+# Admin emails with full access
+ADMIN_EMAILS = ['adam.maznev@gmail.com']
+
+
 @app.route('/api/auth/login', methods=['POST'])
 def login():
     """Login user."""
@@ -199,6 +203,12 @@ def login():
 
     if not user or not check_password_hash(user.password_hash, password):
         return jsonify({'error': 'Invalid credentials'}), 401
+
+    # Auto-upgrade admin accounts to premium
+    if email in ADMIN_EMAILS:
+        user.subscription_tier = 'premium'
+        user.subscription_status = 'active'
+        user.is_admin = True
 
     # Update last login
     user.last_login_at = datetime.utcnow()
