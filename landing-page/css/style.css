@@ -35,10 +35,10 @@ body {
     align-items: center;
 }
 
-.logo h1 {
-    font-size: 24px;
-    font-weight: 700;
-    color: #0f172a;
+.logo-img {
+    height: 48px;
+    width: auto;
+    display: block;
 }
 
 .nav {
