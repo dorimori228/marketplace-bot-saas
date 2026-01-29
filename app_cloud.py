@@ -93,16 +93,23 @@ def user_lookup_callback(_jwt_header, jwt_data):
 tables_initialized = False
 
 def _ensure_tables():
-    """Create tables on demand if missing."""
+    """Create tables on demand if missing, and add missing columns."""
     global tables_initialized
     if tables_initialized:
         return
     try:
-        from sqlalchemy import inspect
+        from sqlalchemy import inspect, text
         inspector = inspect(db.engine)
         if not inspector.has_table('users'):
             print("🛠️ Creating database tables...")
             db.create_all()
+        else:
+            # Ensure new columns exist for legacy databases
+            columns = [col['name'] for col in inspector.get_columns('users')]
+            if 'is_admin' not in columns:
+                print("🛠️ Adding users.is_admin column...")
+                db.session.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT FALSE"))
+                db.session.commit()
         tables_initialized = True
     except Exception as e:
         print(f"⚠️ Table initialization failed: {e}")
