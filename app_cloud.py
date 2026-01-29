@@ -26,7 +26,7 @@ from config.subscription_tiers import get_all_tiers, format_tier_comparison
 app = Flask(__name__,
             template_folder='templates',
             static_folder='static',
-            static_url_path='/static')
+            static_url_path='/assets')
 
 # Configuration
 def _get_database_url():
@@ -50,6 +50,10 @@ def _get_database_url():
 
 app.config['SQLALCHEMY_DATABASE_URI'] = _get_database_url()
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+    'pool_pre_ping': True,
+    'pool_recycle': 300
+}
 app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', 'change-this-in-production')
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=24)
 app.config['JWT_REFRESH_TOKEN_EXPIRES'] = timedelta(days=30)
@@ -98,6 +102,12 @@ def _ensure_tables():
     if tables_initialized:
         return
     try:
+        # Clear any invalid transaction before inspecting/creating tables.
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+
         from sqlalchemy import inspect, text
         inspector = inspect(db.engine)
         if not inspector.has_table('users'):
@@ -112,6 +122,10 @@ def _ensure_tables():
                 db.session.commit()
         tables_initialized = True
     except Exception as e:
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
         print(f"⚠️ Table initialization failed: {e}")
 
 
@@ -145,7 +159,8 @@ def health_check():
 @app.route('/static/logo/<path:filename>')
 def serve_logo(filename):
     """Serve logo files for the extension UI."""
-    logo_dir = os.path.join(os.getcwd(), 'logo')
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    logo_dir = os.path.join(base_dir, 'logo')
     return send_from_directory(logo_dir, filename)
 
 
