@@ -87,39 +87,44 @@ def health_check():
 @app.route('/api/auth/register', methods=['POST'])
 def register():
     """Register a new user."""
-    data = request.json
+    try:
+        data = request.json
 
-    if not data or not data.get('email') or not data.get('password'):
-        return jsonify({'error': 'Email and password required'}), 400
+        if not data or not data.get('email') or not data.get('password'):
+            return jsonify({'error': 'Email and password required'}), 400
 
-    email = data['email'].lower().strip()
-    password = data['password']
+        email = data['email'].lower().strip()
+        password = data['password']
 
-    # Check if user exists
-    if User.query.filter_by(email=email).first():
-        return jsonify({'error': 'Email already registered'}), 409
+        # Check if user exists
+        if User.query.filter_by(email=email).first():
+            return jsonify({'error': 'Email already registered'}), 409
 
-    # Create user
-    user = User(
-        email=email,
-        password_hash=generate_password_hash(password),
-        subscription_tier='none',
-        subscription_status='inactive'
-    )
+        # Create user
+        user = User(
+            email=email,
+            password_hash=generate_password_hash(password),
+            subscription_tier='free',
+            subscription_status='active'
+        )
 
-    db.session.add(user)
-    db.session.commit()
+        db.session.add(user)
+        db.session.commit()
 
-    # Create tokens
-    access_token = create_access_token(identity=user.id)
-    refresh_token = create_refresh_token(identity=user.id)
+        # Create tokens
+        access_token = create_access_token(identity=user.id)
+        refresh_token = create_refresh_token(identity=user.id)
 
-    return jsonify({
-        'message': 'User registered successfully',
-        'access_token': access_token,
-        'refresh_token': refresh_token,
-        'user': user.to_dict()
-    }), 201
+        return jsonify({
+            'message': 'User registered successfully',
+            'access_token': access_token,
+            'refresh_token': refresh_token,
+            'user': user.to_dict()
+        }), 201
+    except Exception as e:
+        db.session.rollback()
+        print(f"Registration error: {str(e)}")
+        return jsonify({'error': f'Registration failed: {str(e)}'}), 500
 
 
 @app.route('/api/auth/login', methods=['POST'])
