@@ -63,6 +63,11 @@ class FeatureGate:
 
                 user = g.current_user
 
+                if getattr(user, 'is_admin', False):
+                    g.subscription_tier = TIER_PREMIUM
+                    g.subscription_limits = get_tier_limits(TIER_PREMIUM)
+                    return f(*args, **kwargs)
+
                 # Check if user has any subscription
                 if user.subscription_status not in ['active', 'trialing']:
                     return jsonify({
@@ -144,7 +149,7 @@ class FeatureGate:
             @wraps(f)
             def decorated_function(*args, **kwargs):
                 user = g.current_user
-                tier = user.subscription_tier
+                tier = TIER_PREMIUM if getattr(user, 'is_admin', False) else user.subscription_tier
 
                 # Get tier limits
                 limits = get_tier_limits(tier)
@@ -318,7 +323,7 @@ def get_usage_summary(user):
     """
     from models import FacebookAccount, Listing, UsageLog
 
-    tier = user.subscription_tier
+    tier = TIER_PREMIUM if getattr(user, 'is_admin', False) else user.subscription_tier
     limits = get_tier_limits(tier)
 
     if not limits:
@@ -351,13 +356,16 @@ def get_usage_summary(user):
             return 100
         return round((current / limit) * 100, 1)
 
+    accounts_limit = limits.get('max_facebook_accounts', 0)
+    monthly_limit = limits.get('max_listings_per_month', 0)
+
     return {
         'tier': tier,
         'accounts': {
             'current': active_accounts,
-            'limit': limits.get('max_facebook_accounts', 0),
-            'percentage': calc_percentage(active_accounts, limits.get('max_facebook_accounts', 0)),
-            'unlimited': limits.get('max_facebook_accounts') == -1
+            'limit': accounts_limit,
+            'percentage': calc_percentage(active_accounts, accounts_limit),
+            'unlimited': accounts_limit == -1
         },
         'active_listings': {
             'current': active_listings,
@@ -367,10 +375,15 @@ def get_usage_summary(user):
         },
         'monthly_listings': {
             'current': monthly_listings,
-            'limit': limits.get('max_listings_per_month', 0),
-            'percentage': calc_percentage(monthly_listings, limits.get('max_listings_per_month', 0)),
-            'unlimited': limits.get('max_listings_per_month') == -1
+            'limit': monthly_limit,
+            'percentage': calc_percentage(monthly_listings, monthly_limit),
+            'unlimited': monthly_limit == -1
         },
+        # Backward-compatible flat fields
+        'accounts_count': active_accounts,
+        'accounts_limit': accounts_limit,
+        'listings_this_month': monthly_listings,
+        'listings_limit': monthly_limit,
         'features': {
             'ai_features': limits.get('ai_features', False),
             'batch_operations': limits.get('batch_operations', False),

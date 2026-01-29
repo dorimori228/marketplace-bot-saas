@@ -67,10 +67,11 @@
             text-align: center;
         }
 
-        .sidebar-header h2 {
-            font-size: 24px;
-            font-weight: 800;
-            margin-bottom: 8px;
+        .sidebar-logo {
+            height: 56px;
+            width: auto;
+            display: block;
+            margin: 0 auto 8px;
         }
 
         .sidebar-header p {
@@ -509,6 +510,11 @@
             color: white;
         }
 
+        .plan-active {
+            border: 2px solid var(--success);
+            box-shadow: 0 12px 24px rgba(136, 179, 152, 0.2);
+        }
+
         /* No Items */
         .no-items {
             text-align: center;
@@ -532,10 +538,23 @@
             text-align: center;
         }
 
+        .welcome-title {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .welcome-logo {
+            height: 56px;
+            width: auto;
+        }
+
         .welcome-banner h1 {
             font-size: 32px;
             font-weight: 800;
-            margin-bottom: 12px;
+            margin-bottom: 0;
         }
 
         .welcome-banner p {
@@ -696,7 +715,7 @@
     <!-- Sidebar -->
     <div class="sidebar">
         <div class="sidebar-header">
-            <h2>PandaBay</h2>
+            <img src="/static/logo/pandabay.png" alt="PandaBay Logo" class="sidebar-logo">
             <p>Facebook Marketplace Automation</p>
         </div>
 
@@ -742,7 +761,10 @@
         <!-- Home/Dashboard Page -->
         <div id="home-page" class="page-view active">
             <div class="welcome-banner">
-                <h1>Welcome to PandaBay</h1>
+                <div class="welcome-title">
+                    <h1>Welcome to</h1>
+                    <img src="/static/logo/pandabay.png" alt="PandaBay Logo" class="welcome-logo">
+                </div>
                 <p>Automate your Facebook Marketplace listings with AI-powered tools</p>
                 <div class="btn-group" style="justify-content: center;">
                     <button class="btn" style="background: white; color: var(--primary);" onclick="showPage('create')">
@@ -967,7 +989,7 @@
 
             <!-- Pricing Cards -->
             <div class="grid grid-3">
-                <div class="card" style="text-align: center;">
+                <div class="card" id="plan-basic" style="text-align: center;">
                     <h3 style="font-size: 24px; font-weight: 700; margin-bottom: 8px;">Basic</h3>
                     <div style="font-size: 36px; font-weight: 800; margin-bottom: 16px;">
                         <span style="font-size: 20px;">$</span>15<span style="font-size: 16px; color: var(--text-secondary);">/mo</span>
@@ -981,7 +1003,7 @@
                     <button class="btn btn-secondary btn-full" onclick="subscribe('basic')">Choose Basic</button>
                 </div>
 
-                <div class="card" style="text-align: center; border: 2px solid var(--primary);">
+                <div class="card" id="plan-pro" style="text-align: center; border: 2px solid var(--primary);">
                     <span class="badge badge-premium" style="margin-bottom: 12px;">Most Popular</span>
                     <h3 style="font-size: 24px; font-weight: 700; margin-bottom: 8px;">Pro</h3>
                     <div style="font-size: 36px; font-weight: 800; margin-bottom: 16px;">
@@ -997,7 +1019,7 @@
                     <button class="btn btn-primary btn-full" onclick="subscribe('pro')">Choose Pro</button>
                 </div>
 
-                <div class="card" style="text-align: center;">
+                <div class="card" id="plan-premium" style="text-align: center;">
                     <h3 style="font-size: 24px; font-weight: 700; margin-bottom: 8px;">Premium</h3>
                     <div style="font-size: 36px; font-weight: 800; margin-bottom: 16px;">
                         <span style="font-size: 20px;">$</span>50<span style="font-size: 16px; color: var(--text-secondary);">/mo</span>
@@ -1065,28 +1087,55 @@
 
         function updateUserUI(user, usage) {
             document.getElementById('user-email').textContent = user.email;
-            document.getElementById('user-tier').textContent = user.subscription_tier || 'Free';
             document.getElementById('user-avatar').textContent = user.email.charAt(0).toUpperCase();
-            document.getElementById('stat-tier').textContent = (user.subscription_tier || 'Free').charAt(0).toUpperCase() + (user.subscription_tier || 'free').slice(1);
-            document.getElementById('plan-badge').textContent = (user.subscription_tier || 'Free').charAt(0).toUpperCase() + (user.subscription_tier || 'free').slice(1);
+            const tierRaw = (user.subscription_tier || 'free').toLowerCase();
+            const effectiveTier = user.is_admin ? 'premium' : tierRaw;
+            const tierLabel = effectiveTier.charAt(0).toUpperCase() + effectiveTier.slice(1);
 
-            if (user.is_admin) {
-                document.getElementById('user-tier').textContent = 'Admin';
-                document.getElementById('plan-badge').textContent = 'Admin (Premium)';
+            document.getElementById('user-tier').textContent = tierLabel;
+            document.getElementById('stat-tier').textContent = tierLabel;
+            document.getElementById('plan-badge').textContent = tierLabel;
+            document.getElementById('plan-badge').classList.toggle('badge-success', effectiveTier === 'premium');
+            const planDescription = document.getElementById('plan-description');
+            if (planDescription) {
+                planDescription.textContent = `${tierLabel} plan active`;
+            }
+
+            ['plan-basic', 'plan-pro', 'plan-premium'].forEach((id) => {
+                const card = document.getElementById(id);
+                if (card) {
+                    card.classList.remove('plan-active');
+                }
+            });
+            const activeCard = document.getElementById(`plan-${effectiveTier}`);
+            if (activeCard) {
+                activeCard.classList.add('plan-active');
             }
 
             // Update usage meters if available
             if (usage) {
-                const listingsUsed = usage.listings_this_month || 0;
-                const listingsLimit = usage.listings_limit || 100;
-                const accountsUsed = usage.accounts_count || 0;
-                const accountsLimit = usage.accounts_limit || 3;
+                const listingsUsed = usage.monthly_listings?.current ?? usage.listings_this_month ?? 0;
+                let listingsLimit = usage.monthly_listings?.limit ?? usage.listings_limit ?? 100;
+                const accountsUsed = usage.accounts?.current ?? usage.accounts_count ?? 0;
+                let accountsLimit = usage.accounts?.limit ?? usage.accounts_limit ?? 3;
 
-                document.getElementById('listings-usage').textContent = `${listingsUsed} / ${listingsLimit}`;
-                document.getElementById('listings-usage-bar').style.width = `${Math.min(100, (listingsUsed / listingsLimit) * 100)}%`;
+                if (effectiveTier === 'premium') {
+                    listingsLimit = -1;
+                    accountsLimit = -1;
+                }
 
-                document.getElementById('accounts-usage').textContent = `${accountsUsed} / ${accountsLimit}`;
-                document.getElementById('accounts-usage-bar').style.width = `${Math.min(100, (accountsUsed / accountsLimit) * 100)}%`;
+                const formatLimit = (limit) => (limit === -1 ? 'Unlimited' : limit);
+                const calcWidth = (current, limit) => {
+                    if (limit === -1) return 100;
+                    if (!limit) return 0;
+                    return Math.min(100, (current / limit) * 100);
+                };
+
+                document.getElementById('listings-usage').textContent = `${listingsUsed} / ${formatLimit(listingsLimit)}`;
+                document.getElementById('listings-usage-bar').style.width = `${calcWidth(listingsUsed, listingsLimit)}%`;
+
+                document.getElementById('accounts-usage').textContent = `${accountsUsed} / ${formatLimit(accountsLimit)}`;
+                document.getElementById('accounts-usage-bar').style.width = `${calcWidth(accountsUsed, accountsLimit)}%`;
             }
         }
 
