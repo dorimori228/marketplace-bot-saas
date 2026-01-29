@@ -740,6 +740,10 @@
                 <i class="fas fa-crown"></i>
                 <span>Subscription</span>
             </div>
+            <div class="nav-item" onclick="showPage('settings')">
+                <i class="fas fa-gear"></i>
+                <span>Settings</span>
+            </div>
         </div>
 
         <div class="sidebar-footer">
@@ -1035,6 +1039,52 @@
                 </div>
             </div>
         </div>
+
+        <!-- Settings Page -->
+        <div id="settings-page" class="page-view">
+            <div class="page-header">
+                <h2><i class="fas fa-gear"></i> Settings</h2>
+                <p>Manage your account and security</p>
+            </div>
+
+            <div class="grid grid-2">
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <i class="fas fa-user"></i> Account
+                        </div>
+                    </div>
+                    <div style="padding: 16px 0;">
+                        <div style="font-weight: 600; margin-bottom: 6px;">Email</div>
+                        <div id="settings-email" style="color: var(--text-secondary);">Loading...</div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <i class="fas fa-lock"></i> Change Password
+                        </div>
+                    </div>
+                    <form id="password-form">
+                        <div class="form-group">
+                            <label class="form-label" for="current-password">Current Password</label>
+                            <input type="password" id="current-password" class="form-input" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="new-password">New Password</label>
+                            <input type="password" id="new-password" class="form-input" required minlength="6">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" for="confirm-password">Confirm New Password</label>
+                            <input type="password" id="confirm-password" class="form-input" required minlength="6">
+                        </div>
+                        <button type="submit" class="btn btn-primary">Update Password</button>
+                        <div id="password-message" style="margin-top: 12px; font-size: 14px;"></div>
+                    </form>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -1088,6 +1138,10 @@
         function updateUserUI(user, usage) {
             document.getElementById('user-email').textContent = user.email;
             document.getElementById('user-avatar').textContent = user.email.charAt(0).toUpperCase();
+            const settingsEmail = document.getElementById('settings-email');
+            if (settingsEmail) {
+                settingsEmail.textContent = user.email;
+            }
             const tierRaw = (user.subscription_tier || 'free').toLowerCase();
             const effectiveTier = user.is_admin ? 'premium' : tierRaw;
             const tierLabel = effectiveTier.charAt(0).toUpperCase() + effectiveTier.slice(1);
@@ -1395,6 +1449,44 @@
             btn.disabled = false;
             btn.innerHTML = '<i class="fas fa-paper-plane"></i> Create Listing';
         });
+
+        // Change password
+        const passwordForm = document.getElementById('password-form');
+        if (passwordForm) {
+            passwordForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const currentPassword = document.getElementById('current-password').value;
+                const newPassword = document.getElementById('new-password').value;
+                const confirmPassword = document.getElementById('confirm-password').value;
+                const messageEl = document.getElementById('password-message');
+
+                if (newPassword !== confirmPassword) {
+                    messageEl.textContent = 'New passwords do not match.';
+                    messageEl.style.color = 'var(--danger)';
+                    return;
+                }
+
+                try {
+                    const response = await authFetch(`${API_URL}/user/password`, {
+                        method: 'PUT',
+                        body: JSON.stringify({
+                            current_password: currentPassword,
+                            new_password: newPassword
+                        })
+                    });
+                    const data = await response.json();
+                    if (!response.ok) {
+                        throw new Error(data.error || 'Password update failed');
+                    }
+                    messageEl.textContent = 'Password updated successfully.';
+                    messageEl.style.color = 'var(--success)';
+                    passwordForm.reset();
+                } catch (error) {
+                    messageEl.textContent = error.message || 'Password update failed.';
+                    messageEl.style.color = 'var(--danger)';
+                }
+            });
+        }
 
         // Delete listing
         async function deleteListing(listingId) {

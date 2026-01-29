@@ -312,6 +312,32 @@ def get_current_user():
     })
 
 
+@app.route('/api/user/password', methods=['PUT'])
+@jwt_required()
+def update_password():
+    """Update the current user's password."""
+    user = g.current_user
+    data = request.json or {}
+
+    current_password = data.get('current_password', '')
+    new_password = data.get('new_password', '')
+
+    if not current_password or not new_password:
+        return jsonify({'error': 'Current and new password required'}), 400
+
+    if len(new_password) < 6:
+        return jsonify({'error': 'New password must be at least 6 characters'}), 400
+
+    if not check_password_hash(user.password_hash, current_password):
+        return jsonify({'error': 'Current password is incorrect'}), 401
+
+    user.password_hash = generate_password_hash(new_password)
+    user.updated_at = datetime.utcnow()
+    db.session.commit()
+
+    return jsonify({'message': 'Password updated successfully'})
+
+
 # ==================== SUBSCRIPTION ====================
 
 @app.route('/api/subscription/tiers', methods=['GET'])
