@@ -664,6 +664,145 @@
             color: var(--text-secondary);
         }
 
+        .ai-toggle-container {
+            position: fixed;
+            top: 18px;
+            right: 24px;
+            z-index: 300;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 14px;
+            background: white;
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            box-shadow: var(--shadow-md);
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        .ai-toggle-label {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .ai-switch {
+            position: relative;
+            display: inline-block;
+            width: 46px;
+            height: 26px;
+        }
+
+        .ai-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .ai-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #cbd5f5;
+            border-radius: 999px;
+            transition: 0.2s;
+        }
+
+        .ai-slider:before {
+            position: absolute;
+            content: "";
+            height: 20px;
+            width: 20px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: 0.2s;
+            border-radius: 50%;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+        }
+
+        .ai-switch input:checked + .ai-slider {
+            background-color: #4f46e5;
+        }
+
+        .ai-switch input:checked + .ai-slider:before {
+            transform: translateX(20px);
+        }
+
+        .input-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        .input-group .form-input {
+            flex: 1;
+        }
+
+        .category-custom {
+            display: none;
+            margin-top: 10px;
+        }
+
+        .category-custom.active {
+            display: block;
+        }
+
+        .category-info {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: #f1f5f9;
+            border-radius: 10px;
+            padding: 10px 12px;
+            margin-top: 8px;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .category-add-btn {
+            border: none;
+            background: var(--primary);
+            color: white;
+            border-radius: 10px;
+            padding: 0 14px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .category-add-btn:hover {
+            background: var(--primary-dark);
+        }
+
+        .photo-preview-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+            gap: 12px;
+            margin-top: 12px;
+        }
+
+        .photo-preview-item {
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+            background: white;
+            aspect-ratio: 1 / 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .photo-preview-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
         #photos {
             display: none;
         }
@@ -712,6 +851,15 @@
     </style>
 </head>
 <body>
+    <div class="ai-toggle-container">
+        <span class="ai-toggle-label">AI Content</span>
+        <label class="ai-switch">
+            <input type="checkbox" id="ai-toggle" checked>
+            <span class="ai-slider"></span>
+        </label>
+        <span id="ai-toggle-status">On</span>
+    </div>
+
     <!-- Sidebar -->
     <div class="sidebar">
         <div class="sidebar-header">
@@ -847,16 +995,12 @@
 
             <div class="card">
                 <form id="create-listing-form">
+                    <input type="hidden" id="ai-enabled" value="true">
                     <div class="form-group">
                         <label class="form-label">Facebook Account <span class="required">*</span></label>
                         <select id="create-account" class="form-select" required>
                             <option value="">Select an account...</option>
                         </select>
-                    </div>
-
-                    <div class="form-group">
-                        <label class="form-label">Title <span class="required">*</span></label>
-                        <input type="text" id="create-title" class="form-input" placeholder="Product title" maxlength="100" required>
                     </div>
 
                     <div class="grid grid-2">
@@ -866,8 +1010,30 @@
                         </div>
                         <div class="form-group">
                             <label class="form-label">Category</label>
-                            <input type="text" id="create-category" class="form-input" placeholder="e.g. Home & Garden">
+                            <select id="create-category" class="form-select">
+                                <option value="Other Garden decor">Artificial Grass & Decking</option>
+                                <option value="Other Rugs & carpets">Carpets</option>
+                                <option value="__custom__">Custom category path...</option>
+                            </select>
+                            <div class="category-custom" id="custom-category-wrapper">
+                                <div class="input-group">
+                                    <input type="text" id="custom-category" class="form-input"
+                                           placeholder="Arts and crafts, Art supplies, Canvas & art boards">
+                                    <button type="button" class="category-add-btn" id="custom-category-add" title="Add category to list">
+                                        <i class="fas fa-plus"></i>
+                                    </button>
+                                </div>
+                                <div class="category-info" id="custom-category-info">
+                                    <i class="fas fa-info-circle"></i>
+                                    <span>Enter the category path exactly as shown on Facebook Marketplace, separated by commas.</span>
+                                </div>
+                            </div>
                         </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Title <span class="required">*</span></label>
+                        <input type="text" id="create-title" class="form-input" placeholder="Product title" maxlength="100" required>
                     </div>
 
                     <div class="form-group">
@@ -877,12 +1043,26 @@
 
                     <div class="form-group">
                         <label class="form-label">Location</label>
-                        <input type="text" id="create-location" class="form-input" placeholder="e.g. London, England">
+                        <div class="input-group">
+                            <input type="text" id="create-location" class="form-input" placeholder="e.g. London, England">
+                            <button type="button" class="btn btn-secondary" onclick="randomizeLocation()">
+                                <i class="fas fa-dice"></i> Random
+                            </button>
+                        </div>
                     </div>
 
                     <div class="form-group">
                         <label class="form-label">Product Tags</label>
                         <input type="text" id="create-tags" class="form-input" placeholder="Comma-separated tags">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Proxy (Optional)</label>
+                        <input type="text" id="create-proxy" class="form-input"
+                               placeholder="http://user:pass@host:port or socks5://host:port">
+                        <small style="color: var(--text-secondary); font-size: 0.875rem; margin-top: 0.25rem; display: block;">
+                            Use a single proxy for this listing run.
+                        </small>
                     </div>
 
                     <div class="form-group">
@@ -892,6 +1072,7 @@
                             <div>Click to upload photos (max 5)</div>
                         </label>
                         <input type="file" id="photos" accept="image/*" multiple>
+                        <div id="photos-preview" class="photo-preview-grid"></div>
                     </div>
 
                     <button type="submit" class="btn btn-primary btn-full" id="create-btn">
@@ -1397,6 +1578,131 @@
             }
         }
 
+        // AI toggle persistence
+        const aiToggle = document.getElementById('ai-toggle');
+        const aiToggleStatus = document.getElementById('ai-toggle-status');
+        const aiEnabledInput = document.getElementById('ai-enabled');
+        const aiToggleStorageKey = 'aiEnabled';
+
+        if (aiToggle && aiEnabledInput && aiToggleStatus) {
+            const stored = localStorage.getItem(aiToggleStorageKey);
+            if (stored !== null) {
+                const enabled = stored === 'true';
+                aiToggle.checked = enabled;
+                aiEnabledInput.value = enabled ? 'true' : 'false';
+                aiToggleStatus.textContent = enabled ? 'On' : 'Off';
+            }
+
+            aiToggle.addEventListener('change', () => {
+                const enabled = aiToggle.checked;
+                aiEnabledInput.value = enabled ? 'true' : 'false';
+                aiToggleStatus.textContent = enabled ? 'On' : 'Off';
+                localStorage.setItem(aiToggleStorageKey, enabled ? 'true' : 'false');
+            });
+        }
+
+        // Category custom path handling
+        const categorySelect = document.getElementById('create-category');
+        const customCategoryWrapper = document.getElementById('custom-category-wrapper');
+        const customCategoryInput = document.getElementById('custom-category');
+        const customCategoryAddBtn = document.getElementById('custom-category-add');
+        const customCategoryStorageKey = 'customCategories';
+
+        function addCustomCategoryOption(value, persist) {
+            const trimmed = value.trim();
+            if (!trimmed) return;
+            const existing = Array.from(categorySelect.options).find(opt => opt.value === trimmed);
+            if (existing) return;
+            const option = document.createElement('option');
+            option.value = trimmed;
+            option.textContent = trimmed;
+            const customOption = document.querySelector('#create-category option[value="__custom__"]');
+            categorySelect.insertBefore(option, customOption);
+            if (persist) {
+                const stored = JSON.parse(localStorage.getItem(customCategoryStorageKey) || '[]');
+                if (!stored.includes(trimmed)) {
+                    stored.push(trimmed);
+                    localStorage.setItem(customCategoryStorageKey, JSON.stringify(stored));
+                }
+            }
+        }
+
+        function loadCustomCategories() {
+            try {
+                const stored = JSON.parse(localStorage.getItem(customCategoryStorageKey) || '[]');
+                stored.forEach(value => addCustomCategoryOption(value, false));
+            } catch (err) {
+                console.warn('Failed to load custom categories', err);
+            }
+        }
+
+        function toggleCustomCategory() {
+            const isCustom = categorySelect.value === '__custom__';
+            customCategoryWrapper.classList.toggle('active', isCustom);
+            if (!isCustom) {
+                customCategoryInput.value = '';
+            }
+        }
+
+        if (categorySelect) {
+            categorySelect.addEventListener('change', toggleCustomCategory);
+            toggleCustomCategory();
+            loadCustomCategories();
+        }
+
+        if (customCategoryAddBtn) {
+            customCategoryAddBtn.addEventListener('click', () => {
+                const value = customCategoryInput.value;
+                addCustomCategoryOption(value, true);
+                if (value.trim()) {
+                    categorySelect.value = value.trim();
+                    toggleCustomCategory();
+                }
+            });
+        }
+
+        function getSelectedCategory() {
+            if (!categorySelect) return '';
+            if (categorySelect.value === '__custom__') {
+                return customCategoryInput.value.trim();
+            }
+            return categorySelect.value;
+        }
+
+        // UK Locations
+        const ukLocations = [
+            'London, England', 'Manchester, England', 'Birmingham, England', 'Liverpool, England',
+            'Leeds, England', 'Sheffield, England', 'Newcastle, England', 'Nottingham, England',
+            'Bristol, England', 'Cardiff, Wales', 'Glasgow, Scotland', 'Edinburgh, Scotland',
+            'Belfast, Northern Ireland', 'Leicester, England', 'Southampton, England', 'Portsmouth, England',
+            'Brighton, England', 'Norwich, England', 'York, England', 'Coventry, England'
+        ];
+
+        // Randomize location
+        function randomizeLocation() {
+            const randomLoc = ukLocations[Math.floor(Math.random() * ukLocations.length)];
+            document.getElementById('create-location').value = randomLoc;
+        }
+
+        // Photo preview
+        const photosInput = document.getElementById('photos');
+        const photosPreview = document.getElementById('photos-preview');
+
+        if (photosInput && photosPreview) {
+            photosInput.addEventListener('change', () => {
+                photosPreview.innerHTML = '';
+                const files = Array.from(photosInput.files || []);
+                files.slice(0, 5).forEach(file => {
+                    if (!file.type.startsWith('image/')) return;
+                    const url = URL.createObjectURL(file);
+                    const item = document.createElement('div');
+                    item.className = 'photo-preview-item';
+                    item.innerHTML = `<img src="${url}" alt="Photo preview">`;
+                    photosPreview.appendChild(item);
+                });
+            });
+        }
+
         // Create listing
         document.getElementById('create-listing-form').addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -1405,9 +1711,11 @@
             const title = document.getElementById('create-title').value;
             const price = document.getElementById('create-price').value;
             const description = document.getElementById('create-description').value;
-            const category = document.getElementById('create-category').value;
+            const category = getSelectedCategory();
             const location = document.getElementById('create-location').value;
             const tags = document.getElementById('create-tags').value;
+            const proxy = document.getElementById('create-proxy').value;
+            const aiEnabled = document.getElementById('ai-enabled').value === 'true';
             const btn = document.getElementById('create-btn');
             const alert = document.getElementById('create-alert');
 
@@ -1429,7 +1737,9 @@
                         description,
                         category,
                         location,
-                        product_tags: tags
+                        product_tags: tags,
+                        proxy,
+                        ai_enabled: aiEnabled
                     })
                 });
 
