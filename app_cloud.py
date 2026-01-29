@@ -241,9 +241,16 @@ def get_current_user():
     if not user:
         return jsonify({'error': 'Invalid or expired token'}), 401
 
+    try:
+        user_payload = user.to_dict()
+        usage_payload = get_usage_summary(user)
+    except Exception as e:
+        print(f"⚠️ Failed to serialize user: {e}")
+        return jsonify({'error': 'User lookup failed'}), 500
+
     return jsonify({
-        'user': user.to_dict(),
-        'usage': get_usage_summary(user)
+        'user': user_payload,
+        'usage': usage_payload
     })
 
 
