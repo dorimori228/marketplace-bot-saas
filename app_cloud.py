@@ -35,12 +35,8 @@ app.config['JWT_REFRESH_TOKEN_EXPIRES'] = timedelta(days=30)
 db.init_app(app)
 jwt = JWTManager(app)
 
-# CORS - Allow Chrome extension
-CORS(app, origins=[
-    'chrome-extension://*',
-    'http://localhost:3000',  # For development
-    os.getenv('FRONTEND_URL', '*')
-])
+# CORS - Allow all origins (Chrome extensions don't send standard Origin headers)
+CORS(app, resources={r"/api/*": {"origins": "*"}}, supports_credentials=True)
 
 # Encryption for cookies
 ENCRYPTION_KEY = os.getenv('ENCRYPTION_KEY')
