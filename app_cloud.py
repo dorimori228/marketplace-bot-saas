@@ -178,7 +178,7 @@ def register_page():
 @app.route('/dashboard')
 def dashboard_page():
     """Serve the main dashboard/admin panel."""
-    return render_template('dashboard.html')
+    return render_template('index.html')
 
 
 @app.route('/pricing')
@@ -609,7 +609,7 @@ def create_listing():
         category=data.get('category'),
         product_tags=data.get('product_tags'),
         location=data.get('location'),
-        status='pending'
+        status=data.get('status', 'pending')
     )
 
     db.session.add(listing)
@@ -695,6 +695,93 @@ def delete_listing(listing_id):
     })
 
 
+@app.route('/api/listings/batch-delete', methods=['POST'])
+@jwt_required()
+@FeatureGate.check_subscription()
+def batch_delete_listings():
+    """Delete multiple listings."""
+    user = g.current_user
+    data = request.json or {}
+    listing_ids = data.get('listing_ids', [])
+
+    if not listing_ids:
+        return jsonify({'error': 'No listings provided'}), 400
+
+    listings = Listing.query.filter(
+        Listing.user_id == user.id,
+        Listing.id.in_(listing_ids)
+    ).all()
+
+    for listing in listings:
+        listing.status = 'deleted'
+        listing.updated_at = datetime.utcnow()
+
+    db.session.commit()
+
+    return jsonify({'message': f'Deleted {len(listings)} listings'})
+
+
+@app.route('/api/listings/relist', methods=['POST'])
+@jwt_required()
+@FeatureGate.check_subscription()
+def relist_listings():
+    """Mark listings for relisting."""
+    user = g.current_user
+    data = request.json or {}
+    listing_ids = data.get('listing_ids', [])
+
+    if not listing_ids:
+        return jsonify({'error': 'No listings provided'}), 400
+
+    listings = Listing.query.filter(
+        Listing.user_id == user.id,
+        Listing.id.in_(listing_ids)
+    ).all()
+
+    for listing in listings:
+        listing.status = 'pending'
+        listing.updated_at = datetime.utcnow()
+
+    db.session.commit()
+
+    return jsonify({'message': f'{len(listings)} listings queued for relist'})
+
+
+@app.route('/api/listings/randomize-locations', methods=['POST'])
+@jwt_required()
+@FeatureGate.check_subscription()
+def randomize_listing_locations():
+    """Randomize listing locations."""
+    user = g.current_user
+    data = request.json or {}
+    listing_ids = data.get('listing_ids', [])
+
+    if not listing_ids:
+        return jsonify({'error': 'No listings provided'}), 400
+
+    uk_locations = [
+        'London, England', 'Manchester, England', 'Birmingham, England', 'Liverpool, England',
+        'Leeds, England', 'Sheffield, England', 'Newcastle, England', 'Nottingham, England',
+        'Bristol, England', 'Cardiff, Wales', 'Glasgow, Scotland', 'Edinburgh, Scotland',
+        'Belfast, Northern Ireland', 'Leicester, England', 'Southampton, England', 'Portsmouth, England',
+        'Brighton, England', 'Norwich, England', 'York, England', 'Coventry, England'
+    ]
+
+    import random
+    listings = Listing.query.filter(
+        Listing.user_id == user.id,
+        Listing.id.in_(listing_ids)
+    ).all()
+
+    for listing in listings:
+        listing.location = random.choice(uk_locations)
+        listing.updated_at = datetime.utcnow()
+
+    db.session.commit()
+
+    return jsonify({'message': f'Randomized {len(listings)} locations'})
+
+
 # ==================== TEMPLATES (Pro+) ====================
 
 @app.route('/api/templates', methods=['GET'])
@@ -742,6 +829,24 @@ def create_template():
         'message': 'Template created successfully',
         'template': template.to_dict()
     }), 201
+
+
+@app.route('/api/templates/<int:template_id>', methods=['DELETE'])
+@jwt_required()
+@FeatureGate.check_subscription()
+@FeatureGate.require_feature('templates')
+def delete_template(template_id):
+    """Delete a listing template."""
+    user = g.current_user
+    template = ListingTemplate.query.filter_by(id=template_id, user_id=user.id).first()
+
+    if not template:
+        return jsonify({'error': 'Template not found'}), 404
+
+    db.session.delete(template)
+    db.session.commit()
+
+    return jsonify({'message': 'Template deleted'})
 
 
 # ==================== ANALYTICS ====================

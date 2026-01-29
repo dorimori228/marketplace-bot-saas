@@ -1479,9 +1479,6 @@
                             <label class="form-label">Account <span class="required">*</span></label>
                             <select id="account" name="account" class="form-select" required>
                                 <option value="">Select account...</option>
-                                {% for account in accounts %}
-                                <option value="{{ account }}">👤 {{ account }}</option>
-                                {% endfor %}
                             </select>
                         </div>
 
@@ -1491,8 +1488,6 @@
                                 <span class="tooltip-icon" data-tooltip="Facebook category path will be selected automatically">i</span>
                             </label>
                             <select id="category" name="category" class="form-select">
-                                <option value="Other Garden decor">Artificial Grass & Decking</option>
-                                <option value="Other Rugs & carpets">Carpets</option>
                                 <option value="__custom__">Custom category path...</option>
                             </select>
                             <div class="category-custom" id="custom-category-wrapper">
@@ -1630,27 +1625,11 @@
                     </div>
                 </div>
 
-                {% if accounts %}
                 <div class="account-select-wrapper">
                     <select id="manage-account" class="account-select-large">
                         <option value="">Choose an account to get started...</option>
-                        {% for account in accounts %}
-                        <option value="{{ account }}">👤 {{ account }}</option>
-                        {% endfor %}
                     </select>
                 </div>
-                {% else %}
-                <div class="no-accounts-prompt">
-                    <div class="icon">
-                        <i class="fas fa-user-slash"></i>
-                    </div>
-                    <h3>No Accounts Found</h3>
-                    <p>You need to add an account before you can manage listings</p>
-                    <button class="btn btn-primary" onclick="showPage('settings')">
-                        <i class="fas fa-plus-circle"></i> Add Account
-                    </button>
-                </div>
-                {% endif %}
             </div>
 
             <!-- Actions Container - Hidden until account selected -->
@@ -1776,6 +1755,9 @@
             <div class="page-header">
                 <h2><i class="fas fa-gem"></i> PandaBay Features</h2>
                 <p>Powerful automation tools for Facebook Marketplace</p>
+                <div id="plan-label" style="margin-top: 8px; font-weight: 600; color: var(--text-secondary);">
+                    Current Plan: Free
+                </div>
             </div>
 
             <div class="stats-grid">
@@ -2091,9 +2073,6 @@
                 <label class="form-label">Filter by Account</label>
                 <select id="activity-account" class="form-select" onchange="loadActivityLog()">
                     <option value="">All Accounts</option>
-                    {% for account in accounts %}
-                    <option value="{{ account }}">{{ account }}</option>
-                    {% endfor %}
                 </select>
             </div>
 
@@ -2120,6 +2099,93 @@
         let listings = [];
         let selectedListings = new Set();
         let currentFilter = 'all';
+        let currentUser = null;
+        let accountMap = new Map();
+        let templatesCache = [];
+
+        const API_URL = window.location.origin + '/api';
+
+        function getToken() {
+            return localStorage.getItem('access_token');
+        }
+
+        function authFetch(url, options = {}) {
+            const token = getToken();
+            return fetch(url, {
+                ...options,
+                headers: {
+                    ...options.headers,
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+        }
+
+        async function checkAuth() {
+            const token = getToken();
+            if (!token) {
+                window.location.href = '/login';
+                return;
+            }
+
+            try {
+                const response = await authFetch(`${API_URL}/auth/me`);
+                if (!response.ok) {
+                    throw new Error('Not authenticated');
+                }
+                const data = await response.json();
+                currentUser = data.user;
+                updatePlanBadge(currentUser);
+            } catch (error) {
+                localStorage.removeItem('access_token');
+                localStorage.removeItem('refresh_token');
+                window.location.href = '/login';
+            }
+        }
+
+        function updatePlanBadge(user) {
+            const planLabel = document.getElementById('plan-label');
+            if (planLabel) {
+                const tier = (user.is_admin ? 'premium' : (user.subscription_tier || 'free')).toLowerCase();
+                planLabel.textContent = `Current Plan: ${tier.charAt(0).toUpperCase() + tier.slice(1)}`;
+            }
+        }
+
+        function populateAccountSelects(accounts) {
+            const createSelect = document.getElementById('account');
+            const manageSelect = document.getElementById('manage-account');
+            const activitySelect = document.getElementById('activity-account');
+
+            const options = accounts.map(acc => `<option value="${acc.id}">👤 ${acc.account_name}</option>`).join('');
+
+            if (createSelect) {
+                createSelect.innerHTML = '<option value="">Select account...</option>' + options;
+            }
+            if (manageSelect) {
+                manageSelect.innerHTML = '<option value="">Choose an account to get started...</option>' + options;
+            }
+            if (activitySelect) {
+                activitySelect.innerHTML = '<option value="">All Accounts</option>' + options;
+            }
+        }
+
+        async function loadAccounts() {
+            try {
+                const response = await authFetch(`${API_URL}/accounts`);
+                if (!response.ok) {
+                    throw new Error('Failed to load accounts');
+                }
+                const data = await response.json();
+                const accounts = data.accounts || [];
+                accountMap = new Map(accounts.map(acc => [String(acc.id), acc.account_name]));
+                populateAccountSelects(accounts);
+
+                if (accounts.length === 0) {
+                    showAlert('accounts-alert', 'info', 'No accounts yet. Add one to start listing.');
+                }
+            } catch (error) {
+                console.error('Error loading accounts:', error);
+            }
+        }
 
         // UK Locations
         const ukLocations = [
@@ -2217,7 +2283,7 @@
         async function loadListings(account) {
             try {
                 console.log('Loading listings for account:', account);
-                const response = await fetch(`/account/${account}/listings`);
+                const response = await authFetch(`${API_URL}/listings?account_id=${encodeURIComponent(account)}`);
                 const data = await response.json();
                 console.log('Received data:', data);
                 listings = data.listings || [];
@@ -2262,10 +2328,8 @@
             }
 
             container.innerHTML = listingsToShow.map(listing => {
-                // Get first image path
-                const imagePaths = listing.image_paths ? listing.image_paths.split('|') : [];
-                const firstImage = imagePaths.length > 0 ? imagePaths[0] : '';
-                const imageUrl = firstImage ? `/image/${encodeURIComponent(firstImage)}` : '';
+                const firstImage = (listing.images && listing.images.length > 0) ? listing.images[0].image_url : '';
+                const imageUrl = firstImage || '';
 
                 return `
                     <div class="listing-card ${selectedListings.has(listing.id) ? 'selected' : ''}"
@@ -2371,13 +2435,13 @@
             if (!confirm('Delete this listing from the database?')) return;
 
             try {
-                const response = await fetch(`/listing/${id}`, { method: 'DELETE' });
+                const response = await authFetch(`${API_URL}/listings/${id}`, { method: 'DELETE' });
                 const result = await response.json();
-                showAlert('manage-alert', result.success ? 'success' : 'error', result.message);
-
-                if (result.success) {
-                    loadListings(currentAccount);
+                if (!response.ok) {
+                    throw new Error(result.error || 'Delete failed');
                 }
+                showAlert('manage-alert', 'success', result.message || 'Listing deleted');
+                loadListings(currentAccount);
             } catch (error) {
                 showAlert('manage-alert', 'error', 'Error deleting listing');
             }
@@ -2392,22 +2456,19 @@
             btn.innerHTML = '<span class="spinner"></span> Relisting...';
 
             try {
-                const response = await fetch('/relist_listings', {
+                const response = await authFetch(`${API_URL}/listings/relist`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        account: currentAccount,
-                        listing_ids: Array.from(selectedListings)
-                    })
+                    body: JSON.stringify({ listing_ids: Array.from(selectedListings) })
                 });
 
                 const result = await response.json();
-                showAlert('manage-alert', result.success ? 'success' : 'error', result.message);
-
-                if (result.success) {
-                    selectedListings.clear();
-                    loadListings(currentAccount);
+                if (!response.ok) {
+                    throw new Error(result.error || 'Relist failed');
                 }
+                showAlert('manage-alert', 'success', result.message || 'Relist queued');
+                selectedListings.clear();
+                loadListings(currentAccount);
             } catch (error) {
                 showAlert('manage-alert', 'error', 'Error relisting');
             } finally {
@@ -2420,7 +2481,6 @@
         async function deleteListings() {
             if (selectedListings.size === 0) return;
 
-            // Confirm before deleting
             const count = selectedListings.size;
             if (!confirm(`Are you sure you want to delete ${count} listing${count !== 1 ? 's' : ''}? This action cannot be undone.`)) {
                 return;
@@ -2431,22 +2491,19 @@
             btn.innerHTML = '<span class="spinner"></span> Deleting...';
 
             try {
-                const response = await fetch('/delete_listings', {
+                const response = await authFetch(`${API_URL}/listings/batch-delete`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        account: currentAccount,
-                        listing_ids: Array.from(selectedListings)
-                    })
+                    body: JSON.stringify({ listing_ids: Array.from(selectedListings) })
                 });
 
                 const result = await response.json();
-                showAlert('manage-alert', result.success ? 'success' : 'error', result.message);
-
-                if (result.success) {
-                    selectedListings.clear();
-                    loadListings(currentAccount);
+                if (!response.ok) {
+                    throw new Error(result.error || 'Delete failed');
                 }
+                showAlert('manage-alert', 'success', result.message || 'Listings deleted');
+                selectedListings.clear();
+                loadListings(currentAccount);
             } catch (error) {
                 showAlert('manage-alert', 'error', 'Error deleting listings');
             } finally {
@@ -2464,21 +2521,18 @@
             btn.innerHTML = '<span class="spinner"></span> Randomizing...';
 
             try {
-                const response = await fetch('/randomize_locations', {
+                const response = await authFetch(`${API_URL}/listings/randomize-locations`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        account: currentAccount,
-                        listing_ids: Array.from(selectedListings)
-                    })
+                    body: JSON.stringify({ listing_ids: Array.from(selectedListings) })
                 });
 
                 const result = await response.json();
-                showAlert('manage-alert', result.success ? 'success' : 'error', result.message);
-
-                if (result.success) {
-                    loadListings(currentAccount);
+                if (!response.ok) {
+                    throw new Error(result.error || 'Randomize failed');
                 }
+                showAlert('manage-alert', 'success', result.message || 'Locations randomized');
+                loadListings(currentAccount);
             } catch (error) {
                 showAlert('manage-alert', 'error', 'Error randomizing locations');
             } finally {
@@ -2514,6 +2568,10 @@
                     localStorage.setItem(customCategoryStorageKey, JSON.stringify(stored));
                 }
             }
+
+            if (categorySelect.style.display === 'none') {
+                categorySelect.style.display = '';
+            }
         }
 
         function loadCustomCategories() {
@@ -2521,6 +2579,11 @@
                 const stored = JSON.parse(localStorage.getItem(customCategoryStorageKey) || '[]');
                 if (Array.isArray(stored)) {
                     stored.forEach(value => addCustomCategoryOption(value, false));
+                }
+                if (!stored || stored.length === 0) {
+                    categorySelect.style.display = 'none';
+                    customCategoryWrapper.classList.add('active');
+                    categorySelect.value = '__custom__';
                 }
             } catch (error) {
                 console.warn('Could not load custom categories', error);
@@ -2633,30 +2696,56 @@
 
         loadAiToggle();
 
-        // Create form submission
+        // Create form submission (Save Listing)
         document.getElementById('create-form').addEventListener('submit', async function(e) {
             e.preventDefault();
 
-            const formData = new FormData(this);
+            const accountId = document.getElementById('account').value;
+            const title = document.getElementById('title').value.trim();
+            const price = document.getElementById('price').value.trim();
+            const description = document.getElementById('description').value.trim();
+            const categoryValue = categorySelect.value === '__custom__'
+                ? customCategoryInput.value.trim()
+                : categorySelect.value;
+            const location = document.getElementById('location').value.trim();
+            const tags = document.getElementById('product_tags').value.trim();
+            const proxy = document.getElementById('proxy').value.trim();
+            const aiEnabled = document.getElementById('ai-enabled').value === 'true';
 
-            if (!applyCustomCategory(formData)) {
+            if (!accountId) {
+                showAlert('create-alert', 'error', 'Please select an account.');
+                return;
+            }
+            if (!categoryValue) {
+                showAlert('create-alert', 'error', 'Please enter a category path.');
                 return;
             }
 
             try {
-                const response = await fetch('/save_listing', {
+                const response = await authFetch(`${API_URL}/listings/create`, {
                     method: 'POST',
-                    body: formData
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        fb_account_id: parseInt(accountId),
+                        title,
+                        price,
+                        description,
+                        category: categoryValue,
+                        location,
+                        product_tags: tags,
+                        proxy,
+                        ai_enabled: aiEnabled,
+                        status: 'draft'
+                    })
                 });
 
                 const result = await response.json();
-                showAlert('create-alert', result.success ? 'success' : 'error', result.message);
-
-                if (result.success) {
-                    document.getElementById('create-btn').disabled = false;
+                if (!response.ok) {
+                    throw new Error(result.error || 'Error saving listing');
                 }
+                showAlert('create-alert', 'success', result.message || 'Listing saved');
             } catch (error) {
-                showAlert('create-alert', 'error', 'Error saving listing');
+                showAlert('create-alert', 'error', error.message || 'Error saving listing');
             }
         });
 
@@ -2667,46 +2756,84 @@
             const accountName = document.getElementById('account-name').value.trim();
             const cookiesJson = document.getElementById('cookies-json').value.trim();
 
+            let cookies;
             try {
-                const response = await fetch('/add_account', {
+                cookies = JSON.parse(cookiesJson);
+            } catch (error) {
+                showAlert('accounts-alert', 'error', 'Cookies must be valid JSON');
+                return;
+            }
+
+            try {
+                const response = await authFetch(`${API_URL}/accounts/add`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         account_name: accountName,
-                        cookies_json: cookiesJson
+                        cookies
                     })
                 });
 
                 const result = await response.json();
-                showAlert('accounts-alert', result.success ? 'success' : 'error', result.message);
-
-                if (result.success) {
-                    this.reset();
-                    setTimeout(() => location.reload(), 1500);
+                if (!response.ok) {
+                    throw new Error(result.error || 'Failed to add account');
                 }
+                showAlert('accounts-alert', 'success', result.message || 'Account added');
+                this.reset();
+                loadAccounts();
             } catch (error) {
-                showAlert('accounts-alert', 'error', 'Error adding account');
+                showAlert('accounts-alert', 'error', error.message || 'Error adding account');
             }
         });
 
-        // Create button click
+        // Create button click (Start Bot & Create)
         document.getElementById('create-btn').addEventListener('click', async function() {
-            const formData = new FormData(document.getElementById('create-form'));
+            const accountId = document.getElementById('account').value;
+            const title = document.getElementById('title').value.trim();
+            const price = document.getElementById('price').value.trim();
+            const description = document.getElementById('description').value.trim();
+            const categoryValue = categorySelect.value === '__custom__'
+                ? customCategoryInput.value.trim()
+                : categorySelect.value;
+            const location = document.getElementById('location').value.trim();
+            const tags = document.getElementById('product_tags').value.trim();
+            const proxy = document.getElementById('proxy').value.trim();
+            const aiEnabled = document.getElementById('ai-enabled').value === 'true';
+
+            if (!accountId) {
+                showAlert('create-alert', 'error', 'Please select an account.');
+                return;
+            }
+            if (!categoryValue) {
+                showAlert('create-alert', 'error', 'Please enter a category path.');
+                return;
+            }
 
             try {
-                if (!applyCustomCategory(formData)) {
-                    return;
-                }
-
-                const response = await fetch('/create_listing', {
+                const response = await authFetch(`${API_URL}/listings/create`, {
                     method: 'POST',
-                    body: formData
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        fb_account_id: parseInt(accountId),
+                        title,
+                        price,
+                        description,
+                        category: categoryValue,
+                        location,
+                        product_tags: tags,
+                        proxy,
+                        ai_enabled: aiEnabled,
+                        status: 'pending'
+                    })
                 });
 
                 const result = await response.json();
-                showAlert('create-alert', result.success ? 'success' : 'error', result.message);
+                if (!response.ok) {
+                    throw new Error(result.error || 'Error creating listing');
+                }
+                showAlert('create-alert', 'success', result.message || 'Listing created');
             } catch (error) {
-                showAlert('create-alert', 'error', 'Error creating listing');
+                showAlert('create-alert', 'error', error.message || 'Error creating listing');
             }
         });
 
@@ -2729,11 +2856,12 @@
 
         async function loadTemplates() {
             try {
-                const response = await fetch('/templates');
+                const response = await authFetch(`${API_URL}/templates`);
                 const data = await response.json();
 
-                if (data.success && data.templates.length > 0) {
-                    displayTemplates(data.templates);
+                templatesCache = data.templates || [];
+                if (templatesCache.length > 0) {
+                    displayTemplates(templatesCache);
                 }
             } catch (error) {
                 console.error('Error loading templates:', error);
@@ -2785,7 +2913,7 @@
             }
 
             try {
-                const response = await fetch('/templates/save', {
+                const response = await authFetch(`${API_URL}/templates`, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify(templateData)
@@ -2793,8 +2921,8 @@
 
                 const result = await response.json();
 
-                if (result.success) {
-                    showAlert('template-alert', 'success', 'Template saved successfully!');
+                if (response.ok) {
+                    showAlert('template-alert', 'success', result.message || 'Template saved successfully!');
                     document.getElementById('template-name').value = '';
                     document.getElementById('template-description').value = '';
                     document.getElementById('template-category').value = '';
@@ -2804,7 +2932,7 @@
                     document.getElementById('template-tags').value = '';
                     loadTemplates();
                 } else {
-                    showAlert('template-alert', 'error', result.message);
+                    showAlert('template-alert', 'error', result.error || 'Template save failed');
                 }
             } catch (error) {
                 showAlert('template-alert', 'error', 'Error saving template');
@@ -2812,40 +2940,34 @@
         }
 
         async function applyTemplateToForm(templateId) {
-            try {
-                const response = await fetch(`/templates/${templateId}/apply`, {method: 'POST'});
-                const result = await response.json();
-
-                if (result.success) {
-                    const template = result.template;
-                    showPage('create');
-
-                    if (template.category) setCategorySelection(template.category);
-                    if (template.price_template) document.getElementById('price').value = template.price_template;
-                    if (template.description_template) document.getElementById('description').value = template.description_template;
-                    if (template.location) document.getElementById('location').value = template.location;
-                    if (template.product_tags) document.getElementById('product_tags').value = template.product_tags;
-
-                    showAlert('create-alert', 'success', `Template "${template.name}" applied!`);
-                }
-            } catch (error) {
-                showAlert('template-alert', 'error', 'Error applying template');
+            const template = templatesCache.find(t => t.id === templateId);
+            if (!template) {
+                showAlert('template-alert', 'error', 'Template not found');
+                return;
             }
+            showPage('create');
+
+            if (template.category) setCategorySelection(template.category);
+            if (template.price_template) document.getElementById('price').value = template.price_template;
+            if (template.description_template) document.getElementById('description').value = template.description_template;
+            if (template.location) document.getElementById('location').value = template.location;
+            if (template.product_tags) document.getElementById('product_tags').value = template.product_tags;
+
+            showAlert('create-alert', 'success', `Template "${template.name}" applied!`);
         }
 
         async function deleteTemplate(templateId) {
             if (!confirm('Delete this template?')) return;
 
             try {
-                const response = await fetch(`/templates/${templateId}/delete`, {method: 'POST'});
+                const response = await authFetch(`${API_URL}/templates/${templateId}`, {method: 'DELETE'});
                 const result = await response.json();
 
-                if (result.success) {
-                    showAlert('template-alert', 'success', 'Template deleted');
-                    loadTemplates();
-                } else {
-                    showAlert('template-alert', 'error', result.message);
+                if (!response.ok) {
+                    throw new Error(result.error || 'Delete failed');
                 }
+                showAlert('template-alert', 'success', result.message || 'Template deleted');
+                loadTemplates();
             } catch (error) {
                 showAlert('template-alert', 'error', 'Error deleting template');
             }
@@ -2856,22 +2978,18 @@
         // ============================================================================
 
         async function loadAnalytics() {
-            const accountName = document.getElementById('analytics-account').value;
-
             try {
-                const summaryResponse = await fetch(`/analytics/summary?account=${accountName}&days=30`);
-                const summaryData = await summaryResponse.json();
-
-                if (summaryData.success) {
-                    displayAnalyticsSummary(summaryData.analytics);
+                const response = await authFetch(`${API_URL}/analytics/dashboard`);
+                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to load analytics');
                 }
 
-                const accountsResponse = await fetch('/analytics/accounts');
-                const accountsData = await accountsResponse.json();
-
-                if (accountsData.success) {
-                    displayAccountPerformance(accountsData.accounts);
-                }
+                const recent = data.recent_listings || [];
+                document.getElementById('stat-successful').textContent = recent.length;
+                document.getElementById('stat-failed').textContent = 0;
+                document.getElementById('stat-deletions').textContent = 0;
+                document.getElementById('stat-success-rate').textContent = recent.length ? '100%' : '0%';
             } catch (error) {
                 console.error('Error loading analytics:', error);
             }
@@ -2961,26 +3079,13 @@
         // ============================================================================
 
         async function loadActivityLog() {
-            const accountName = document.getElementById('activity-account').value;
-
-            try {
-                const response = await fetch(`/activity_log?account=${accountName}&limit=100`);
-                const data = await response.json();
-
-                if (data.success && data.activities.length > 0) {
-                    displayActivityLog(data.activities);
-                } else {
-                    document.getElementById('activity-log-list').innerHTML = `
-                        <div class="no-listings">
-                            <div class="no-listings-icon"><i class="fas fa-history"></i></div>
-                            <h3>No activity recorded</h3>
-                            <p>Activity will appear here as you use the bot</p>
-                        </div>
-                    `;
-                }
-            } catch (error) {
-                console.error('Error loading activity log:', error);
-            }
+            document.getElementById('activity-log-list').innerHTML = `
+                <div class="no-listings">
+                    <div class="no-listings-icon"><i class="fas fa-history"></i></div>
+                    <h3>No activity recorded</h3>
+                    <p>Activity will appear here as you use the bot</p>
+                </div>
+            `;
         }
 
         function displayActivityLog(activities) {
@@ -3010,6 +3115,13 @@
                 `;
             }).join('');
         }
+
+        // Initial load
+        checkAuth().then(() => {
+            loadAccounts();
+            loadTemplates();
+            loadAnalytics();
+        });
 
         // Override showPage to load data when switching to new pages
         const originalShowPage = showPage;

@@ -1,11 +1,15 @@
 import argparse
 import json
+import os
 import pickle
 import sqlite3
 from datetime import datetime
 from pathlib import Path
 
-from app_cloud import app, db, User, FacebookAccount, Listing, cipher
+from flask import Flask
+from cryptography.fernet import Fernet
+
+from models import db, User, FacebookAccount, Listing
 
 
 def parse_datetime(value):
@@ -61,6 +65,11 @@ def load_cookies(account_dir):
 def import_listings_for_account(account, db_path):
     conn = sqlite3.connect(db_path)
     cur = conn.cursor()
+    cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='listings'")
+    if not cur.fetchone():
+        conn.close()
+        return 0
+
     cur.execute(
         """
         SELECT title, price, description, category, product_tags, location,
@@ -118,7 +127,22 @@ def main():
     if not accounts_dir.exists():
         raise SystemExit(f"Accounts directory not found: {accounts_dir}")
 
+    database_url = os.getenv("DATABASE_URL")
+    if not database_url:
+        raise SystemExit("DATABASE_URL is not set")
+
+    encryption_key = os.getenv("ENCRYPTION_KEY")
+    if not encryption_key:
+        raise SystemExit("ENCRYPTION_KEY is not set")
+
+    app = Flask(__name__)
+    app.config["SQLALCHEMY_DATABASE_URI"] = database_url
+    app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+    db.init_app(app)
+    cipher = Fernet(encryption_key.encode())
+
     with app.app_context():
+        db.create_all()
         user = User.query.filter_by(email=args.email.lower().strip()).first()
         if not user:
             raise SystemExit(f"User not found: {args.email}")
