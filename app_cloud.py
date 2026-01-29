@@ -3,7 +3,7 @@ Cloud Flask Application for Facebook Marketplace Bot SaaS
 Multi-tenant API with authentication, subscriptions, and feature gating.
 """
 
-from flask import Flask, request, jsonify, g, send_from_directory
+from flask import Flask, request, jsonify, g, send_from_directory, render_template, redirect, url_for
 from werkzeug.exceptions import HTTPException
 from flask_cors import CORS
 from flask_jwt_extended import (
@@ -22,8 +22,11 @@ from middleware.feature_gate import FeatureGate, get_usage_summary, validate_bat
 from stripe_integration import StripeIntegration, StripeWebhookHandler
 from config.subscription_tiers import get_all_tiers, format_tier_comparison
 
-# Initialize Flask app
-app = Flask(__name__)
+# Initialize Flask app with template and static folders
+app = Flask(__name__,
+            template_folder='templates',
+            static_folder='static',
+            static_url_path='/static')
 
 # Configuration
 def _get_database_url():
@@ -137,6 +140,44 @@ def serve_logo(filename):
     """Serve logo files for the extension UI."""
     logo_dir = os.path.join(os.getcwd(), 'logo')
     return send_from_directory(logo_dir, filename)
+
+
+# ==================== WEB PAGES ====================
+
+@app.route('/')
+def landing_page():
+    """Serve the landing page."""
+    return send_from_directory('landing-page', 'index.html')
+
+
+@app.route('/landing-page/<path:filename>')
+def serve_landing_assets(filename):
+    """Serve landing page static assets (CSS, JS, images)."""
+    return send_from_directory('landing-page', filename)
+
+
+@app.route('/login')
+def login_page():
+    """Serve the login page."""
+    return render_template('login.html')
+
+
+@app.route('/register')
+def register_page():
+    """Serve the registration page."""
+    return render_template('register.html')
+
+
+@app.route('/dashboard')
+def dashboard_page():
+    """Serve the main dashboard/admin panel."""
+    return render_template('dashboard.html')
+
+
+@app.route('/pricing')
+def pricing_page():
+    """Serve the pricing page with Stripe checkout links."""
+    return render_template('pricing.html')
 
 
 # ==================== AUTHENTICATION ====================
