@@ -230,6 +230,10 @@ def refresh():
 def get_current_user():
     """Get current user info."""
     user_id = get_jwt_identity()
+    try:
+        user_id = int(user_id) if user_id is not None else None
+    except (TypeError, ValueError):
+        user_id = None
     if not user_id:
         return jsonify({'error': 'Invalid or expired token'}), 401
 
