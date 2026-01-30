@@ -52,7 +52,17 @@ app.config['SQLALCHEMY_DATABASE_URI'] = _get_database_url()
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
     'pool_pre_ping': True,
-    'pool_recycle': 300
+    'pool_recycle': 60,
+    'pool_size': 5,
+    'max_overflow': 10,
+    'pool_timeout': 30,
+    'connect_args': {
+        'connect_timeout': 10,
+        'keepalives': 1,
+        'keepalives_idle': 30,
+        'keepalives_interval': 10,
+        'keepalives_count': 5
+    }
 }
 app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', 'change-this-in-production')
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=24)
@@ -62,11 +72,25 @@ app.config['JWT_REFRESH_TOKEN_EXPIRES'] = timedelta(days=30)
 db.init_app(app)
 jwt = JWTManager(app)
 
+# Always clear DB sessions between requests to avoid stale transactions.
+@app.teardown_appcontext
+def shutdown_session(exception=None):
+    if exception is not None:
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+    db.session.remove()
+
 # ==================== ERROR HANDLING ====================
 
 @app.errorhandler(Exception)
 def handle_exception(error):
     """Return JSON for unhandled exceptions."""
+    try:
+        db.session.rollback()
+    except Exception:
+        pass
     if isinstance(error, HTTPException):
         return jsonify({'error': error.description}), error.code
     print(f"⚠️ Unhandled exception: {error}")
@@ -101,32 +125,54 @@ def _ensure_tables():
     global tables_initialized
     if tables_initialized:
         return
-    try:
-        # Clear any invalid transaction before inspecting/creating tables.
-        try:
-            db.session.rollback()
-        except Exception:
-            pass
 
-        from sqlalchemy import inspect, text
-        inspector = inspect(db.engine)
-        if not inspector.has_table('users'):
-            print("🛠️ Creating database tables...")
-            db.create_all()
-        else:
-            # Ensure new columns exist for legacy databases
-            columns = [col['name'] for col in inspector.get_columns('users')]
-            if 'is_admin' not in columns:
-                print("🛠️ Adding users.is_admin column...")
-                db.session.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT FALSE"))
-                db.session.commit()
-        tables_initialized = True
-    except Exception as e:
+    from sqlalchemy import inspect, text
+    from sqlalchemy.exc import OperationalError
+
+    for attempt in range(2):
         try:
-            db.session.rollback()
-        except Exception:
-            pass
-        print(f"⚠️ Table initialization failed: {e}")
+            # Clear any invalid transaction before inspecting/creating tables.
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
+
+            inspector = inspect(db.engine)
+            if not inspector.has_table('users'):
+                print("🛠️ Creating database tables...")
+                db.create_all()
+            else:
+                # Ensure new columns exist for legacy databases
+                columns = [col['name'] for col in inspector.get_columns('users')]
+                if 'is_admin' not in columns:
+                    print("🛠️ Adding users.is_admin column...")
+                    db.session.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS is_admin BOOLEAN DEFAULT FALSE"))
+                    db.session.commit()
+            tables_initialized = True
+            return
+        except OperationalError as e:
+            # Transient DB connection issue; reset state and retry once.
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
+            try:
+                db.engine.dispose()
+            except Exception:
+                pass
+            if attempt == 0:
+                print(f"⚠️ DB connection hiccup during table init: {e}")
+                continue
+            print(f"⚠️ Table initialization failed: {e}")
+            tables_initialized = False
+            return
+        except Exception as e:
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
+            print(f"⚠️ Table initialization failed: {e}")
+            return
 
 
 @app.before_request
@@ -890,9 +936,25 @@ def analytics_dashboard():
 # ==================== CREATE TABLES ====================
 
 # Create tables on startup (works with gunicorn)
-with app.app_context():
-    db.create_all()
-    print("✅ Database tables created")
+def init_database():
+    """Initialize database tables with retry logic."""
+    import time
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            with app.app_context():
+                db.create_all()
+                print("✅ Database tables created")
+                return True
+        except Exception as e:
+            print(f"⚠️ Database init attempt {attempt + 1} failed: {e}")
+            if attempt < max_retries - 1:
+                time.sleep(2)
+            else:
+                print("❌ Database initialization failed after retries")
+                return False
+
+init_database()
 
 
 # ==================== RUN APP ====================
