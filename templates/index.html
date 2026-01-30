@@ -3079,13 +3079,41 @@
         // ============================================================================
 
         async function loadActivityLog() {
-            document.getElementById('activity-log-list').innerHTML = `
-                <div class="no-listings">
-                    <div class="no-listings-icon"><i class="fas fa-history"></i></div>
-                    <h3>No activity recorded</h3>
-                    <p>Activity will appear here as you use the bot</p>
-                </div>
-            `;
+            const container = document.getElementById('activity-log-list');
+            container.innerHTML = '<div class="no-listings"><div class="no-listings-icon"><i class="fas fa-spinner fa-spin"></i></div><h3>Loading activity...</h3></div>';
+
+            try {
+                const accountId = document.getElementById('activity-account')?.value || '';
+                const url = accountId ? `${API_URL}/activity?account_id=${accountId}` : `${API_URL}/activity`;
+                const response = await authFetch(url);
+
+                if (!response.ok) {
+                    throw new Error('Failed to load activity');
+                }
+
+                const data = await response.json();
+
+                if (data.activities && data.activities.length > 0) {
+                    displayActivityLog(data.activities);
+                } else {
+                    container.innerHTML = `
+                        <div class="no-listings">
+                            <div class="no-listings-icon"><i class="fas fa-history"></i></div>
+                            <h3>No activity recorded</h3>
+                            <p>Activity will appear here as you use the bot</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error loading activity:', error);
+                container.innerHTML = `
+                    <div class="no-listings">
+                        <div class="no-listings-icon"><i class="fas fa-history"></i></div>
+                        <h3>No activity recorded</h3>
+                        <p>Activity will appear here as you use the bot</p>
+                    </div>
+                `;
+            }
         }
 
         function displayActivityLog(activities) {

@@ -917,6 +917,7 @@ def delete_template(template_id):
 @FeatureGate.check_subscription()
 def analytics_dashboard():
     """Get analytics dashboard data."""
+    from sqlalchemy import func
     user = g.current_user
 
     # Get usage summary
@@ -927,9 +928,118 @@ def analytics_dashboard():
         .order_by(Listing.created_at.desc())\
         .limit(10).all()
 
+    # Get stats by action type
+    stats = {}
+    usage_logs = UsageLog.query.filter_by(user_id=user.id).all()
+    for log in usage_logs:
+        action = log.action_type
+        if action not in stats:
+            stats[action] = {'total': 0, 'successful': 0, 'failed': 0}
+        stats[action]['total'] += 1
+        # Extract status from action_data if available
+        status = None
+        if log.action_data and isinstance(log.action_data, dict):
+            status = log.action_data.get('status')
+        if status == 'success':
+            stats[action]['successful'] += 1
+        elif status == 'error' or status == 'failed':
+            stats[action]['failed'] += 1
+        else:
+            # Assume successful if no status specified
+            stats[action]['successful'] += 1
+
+    # Get daily activity for last 30 days
+    thirty_days_ago = datetime.utcnow() - timedelta(days=30)
+    daily_activity = []
+
+    daily_logs = db.session.query(
+        func.date(UsageLog.timestamp).label('date'),
+        func.count(UsageLog.id).label('count')
+    ).filter(
+        UsageLog.user_id == user.id,
+        UsageLog.timestamp >= thirty_days_ago
+    ).group_by(func.date(UsageLog.timestamp)).order_by(func.date(UsageLog.timestamp)).all()
+
+    for row in daily_logs:
+        daily_activity.append({
+            'date': str(row.date) if row.date else '',
+            'count': row.count
+        })
+
+    # Get account performance
+    account_performance = []
+    accounts = FacebookAccount.query.filter_by(user_id=user.id).all()
+    for account in accounts:
+        account_listings = Listing.query.filter_by(user_id=user.id, fb_account_id=account.id).all()
+        total = len(account_listings)
+        successful = len([l for l in account_listings if l.status == 'active'])
+        failed = len([l for l in account_listings if l.status == 'failed'])
+        deletions = len([l for l in account_listings if l.status == 'deleted'])
+        success_rate = round((successful / total) * 100) if total > 0 else 0
+
+        account_performance.append({
+            'account_name': account.account_name,
+            'total_listings': total,
+            'successful_listings': successful,
+            'failed_listings': failed,
+            'total_deletions': deletions,
+            'success_rate': success_rate
+        })
+
     return jsonify({
         'usage': usage,
-        'recent_listings': [l.to_dict() for l in recent_listings]
+        'recent_listings': [l.to_dict() for l in recent_listings],
+        'stats': stats,
+        'daily_activity': daily_activity,
+        'account_performance': account_performance
+    })
+
+
+@app.route('/api/activity', methods=['GET'])
+@jwt_required()
+@FeatureGate.check_subscription()
+def get_activity_log():
+    """Get user's activity log."""
+    user = g.current_user
+    account_id = request.args.get('account_id', type=int)
+    limit = request.args.get('limit', 100, type=int)
+
+    query = UsageLog.query.filter_by(user_id=user.id)
+
+    if account_id:
+        # Filter logs by listings associated with this account
+        listing_ids = [l.id for l in Listing.query.filter_by(user_id=user.id, fb_account_id=account_id).all()]
+        query = query.filter(UsageLog.listing_id.in_(listing_ids))
+
+    logs = query.order_by(UsageLog.timestamp.desc()).limit(limit).all()
+
+    activities = []
+    for log in logs:
+        listing = Listing.query.get(log.listing_id) if log.listing_id else None
+        account = None
+        if listing and listing.fb_account_id:
+            account = FacebookAccount.query.get(listing.fb_account_id)
+
+        # Extract status and details from action_data
+        status = 'info'
+        details = None
+        if log.action_data and isinstance(log.action_data, dict):
+            status = log.action_data.get('status', 'info')
+            details = log.action_data.get('details')
+
+        activities.append({
+            'id': log.id,
+            'action_type': log.action_type,
+            'status': status,
+            'details': details,
+            'listing_title': listing.title if listing else None,
+            'account_name': account.account_name if account else 'Unknown',
+            'timestamp': log.timestamp.isoformat() if log.timestamp else None
+        })
+
+    return jsonify({
+        'activities': activities,
+        'count': len(activities)
     })
 
 
