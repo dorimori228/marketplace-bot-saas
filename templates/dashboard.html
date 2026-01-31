@@ -446,6 +446,11 @@
             border-color: var(--primary);
         }
 
+        .listing-card.selected {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(48, 54, 79, 0.1);
+        }
+
         .listing-image {
             width: 100%;
             height: 180px;
@@ -455,6 +460,20 @@
 
         .listing-content {
             padding: 20px;
+        }
+
+        .listing-header {
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .listing-checkbox {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+            accent-color: var(--primary);
         }
 
         .listing-title {
@@ -880,6 +899,10 @@
                 <i class="fas fa-list"></i>
                 <span>My Listings</span>
             </div>
+            <div class="nav-item" onclick="showPage('run')">
+                <i class="fas fa-play-circle"></i>
+                <span>Run Bot</span>
+            </div>
             <div class="nav-item" onclick="showPage('accounts')">
                 <i class="fas fa-user-circle"></i>
                 <span>FB Accounts</span>
@@ -1098,6 +1121,51 @@
             </div>
         </div>
 
+        <!-- Run Bot Page -->
+        <div id="run-page" class="page-view">
+            <div class="page-header">
+                <h2><i class="fas fa-play-circle"></i> Run Bot</h2>
+                <p>Select an account and run the bot on chosen listings</p>
+            </div>
+
+            <div id="run-alert"></div>
+
+            <div class="card">
+                <div class="form-group">
+                    <label class="form-label">Facebook Account <span class="required">*</span></label>
+                    <select id="run-account" class="form-select">
+                        <option value="">Select an account...</option>
+                    </select>
+                </div>
+
+                <div class="btn-group">
+                    <button class="btn btn-secondary" onclick="selectRun20Listings()">
+                        <i class="fas fa-check-double"></i> Select 20
+                    </button>
+                    <button class="btn btn-secondary" onclick="selectRunAllListings()">
+                        <i class="fas fa-check-square"></i> Select All
+                    </button>
+                    <button class="btn btn-secondary" onclick="deselectRunAllListings()">
+                        <i class="fas fa-square"></i> Deselect All
+                    </button>
+                </div>
+
+                <div id="run-selected-count" class="select-count" style="display: none;"></div>
+
+                <button class="btn btn-success btn-full" id="run-btn" disabled onclick="runSelectedListings()">
+                    <i class="fas fa-play"></i> Run Selected
+                </button>
+            </div>
+
+            <div id="run-listings-container" class="listings-grid">
+                <div class="no-items">
+                    <div class="no-items-icon"><i class="fas fa-box-open"></i></div>
+                    <h3>No listings found</h3>
+                    <p>Select an account to view listings</p>
+                </div>
+            </div>
+        </div>
+
         <!-- Accounts Page -->
         <div id="accounts-page" class="page-view">
             <div class="page-header">
@@ -1273,6 +1341,9 @@
         const API_URL = window.location.origin + '/api';
         let currentUser = null;
         let fbAccounts = [];
+        let runAccount = '';
+        let runListings = [];
+        let selectedRunListings = new Set();
 
         // Authentication
         function getToken() {
@@ -1429,10 +1500,17 @@
 
         function populateAccountDropdowns(accounts) {
             const createSelect = document.getElementById('create-account');
+            const runSelect = document.getElementById('run-account');
             createSelect.innerHTML = '<option value="">Select an account...</option>';
             accounts.forEach(account => {
                 createSelect.innerHTML += `<option value="${account.id}">${account.account_name}</option>`;
             });
+            if (runSelect) {
+                runSelect.innerHTML = '<option value="">Select an account...</option>';
+                accounts.forEach(account => {
+                    runSelect.innerHTML += `<option value="${account.id}">${account.account_name}</option>`;
+                });
+            }
         }
 
         // Load listings
@@ -1448,6 +1526,160 @@
                 }
             } catch (error) {
                 console.error('Error loading listings:', error);
+            }
+        }
+
+        // Run account selection
+        const runAccountSelect = document.getElementById('run-account');
+        if (runAccountSelect) {
+            runAccountSelect.addEventListener('change', () => {
+                runAccount = runAccountSelect.value;
+                selectedRunListings.clear();
+                if (runAccount) {
+                    loadRunListings(runAccount);
+                } else {
+                    clearRunListings();
+                }
+            });
+        }
+
+        async function loadRunListings(accountId) {
+            try {
+                const response = await authFetch(`${API_URL}/listings?account_id=${encodeURIComponent(accountId)}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    runListings = data.listings || [];
+                    displayRunListings();
+                }
+            } catch (error) {
+                console.error('Error loading run listings:', error);
+                runListings = [];
+                displayRunListings();
+            }
+        }
+
+        function clearRunListings() {
+            runListings = [];
+            selectedRunListings.clear();
+            displayRunListings();
+        }
+
+        function displayRunListings(listingsToShow = runListings) {
+            const container = document.getElementById('run-listings-container');
+            if (!container) return;
+
+            if (!listingsToShow || listingsToShow.length === 0) {
+                container.innerHTML = `
+                    <div class="no-items">
+                        <div class="no-items-icon"><i class="fas fa-box-open"></i></div>
+                        <h3>No listings found</h3>
+                        <p>Select an account to view listings</p>
+                    </div>
+                `;
+                updateRunSelectedCount();
+                return;
+            }
+
+            container.innerHTML = listingsToShow.map(listing => {
+                const firstImage = (listing.images && listing.images.length > 0) ? listing.images[0].image_url : '';
+                const imageUrl = firstImage || '';
+
+                return `
+                    <div class="listing-card ${selectedRunListings.has(listing.id) ? 'selected' : ''}"
+                         onclick="toggleRunListing(${listing.id})">
+                        ${imageUrl ? `<img src="${imageUrl}" class="listing-image" alt="${listing.title}" onerror="this.style.display='none'">` : ''}
+                        <div class="listing-content">
+                            <div class="listing-header">
+                                <input type="checkbox" class="listing-checkbox"
+                                       ${selectedRunListings.has(listing.id) ? 'checked' : ''}
+                                       onclick="event.stopPropagation()">
+                            </div>
+                            <div class="listing-title">${listing.title}</div>
+                            <div class="listing-price">${listing.price}</div>
+                            <div class="listing-meta">
+                                <span class="badge badge-primary">${listing.status || 'pending'}</span>
+                                <span style="margin-left: 8px;">${new Date(listing.created_at).toLocaleDateString()}</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            updateRunSelectedCount();
+        }
+
+        function toggleRunListing(id) {
+            if (selectedRunListings.has(id)) {
+                selectedRunListings.delete(id);
+            } else {
+                selectedRunListings.add(id);
+            }
+            displayRunListings();
+        }
+
+        function updateRunSelectedCount() {
+            const countDiv = document.getElementById('run-selected-count');
+            const runBtn = document.getElementById('run-btn');
+            if (!countDiv || !runBtn) return;
+
+            const count = selectedRunListings.size;
+            if (count > 0) {
+                countDiv.style.display = 'block';
+                countDiv.innerHTML = `<i class="fas fa-check-circle"></i> ${count} listing${count !== 1 ? 's' : ''} selected`;
+                runBtn.disabled = false;
+            } else {
+                countDiv.style.display = 'none';
+                runBtn.disabled = true;
+            }
+        }
+
+        function selectRun20Listings() {
+            selectedRunListings.clear();
+            const count = Math.min(20, runListings.length);
+            for (let i = 0; i < count; i++) {
+                selectedRunListings.add(runListings[i].id);
+            }
+            displayRunListings();
+        }
+
+        function selectRunAllListings() {
+            selectedRunListings.clear();
+            runListings.forEach(listing => selectedRunListings.add(listing.id));
+            displayRunListings();
+        }
+
+        function deselectRunAllListings() {
+            selectedRunListings.clear();
+            displayRunListings();
+        }
+
+        async function runSelectedListings() {
+            if (selectedRunListings.size === 0) return;
+
+            const btn = document.getElementById('run-btn');
+            const alertEl = document.getElementById('run-alert');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner"></span> Running...';
+
+            try {
+                const response = await authFetch(`${API_URL}/listings/run`, {
+                    method: 'POST',
+                    body: JSON.stringify({ listing_ids: Array.from(selectedRunListings) })
+                });
+
+                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data.error || 'Run failed');
+                }
+
+                showAlert(alertEl, data.message || 'Bot run queued', 'success');
+                selectedRunListings.clear();
+                loadRunListings(runAccount);
+            } catch (error) {
+                showAlert(alertEl, error.message || 'Error running bot', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-play"></i> Run Selected';
             }
         }
 

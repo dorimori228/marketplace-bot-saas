@@ -12,6 +12,7 @@ from flask_jwt_extended import (
 )
 from werkzeug.security import generate_password_hash, check_password_hash
 from datetime import datetime, timedelta
+from urllib.parse import urlparse, urlunparse, parse_qsl, urlencode
 from cryptography.fernet import Fernet
 import os
 import json
@@ -44,9 +45,25 @@ def _get_database_url():
         value = os.getenv(key)
         if value and value.strip():
             print(f"✅ Using database URL from {key}")
-            return value.strip()
+            return _ensure_sslmode(value.strip())
     print("⚠️ DATABASE_URL is empty; falling back to local postgres")
-    return 'postgresql://localhost/marketplace_bot'
+    return _ensure_sslmode('postgresql://localhost/marketplace_bot')
+
+
+def _ensure_sslmode(db_url):
+    """Ensure SSL mode is required for Postgres connections."""
+    try:
+        parsed = urlparse(db_url)
+        if not parsed.scheme.startswith('postgres'):
+            return db_url
+        query = dict(parse_qsl(parsed.query, keep_blank_values=True))
+        if 'sslmode' not in query:
+            query['sslmode'] = 'require'
+            parsed = parsed._replace(query=urlencode(query))
+        return urlunparse(parsed)
+    except Exception:
+        # If parsing fails, fall back to original URL
+        return db_url
 
 app.config['SQLALCHEMY_DATABASE_URI'] = _get_database_url()
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
@@ -239,7 +256,7 @@ def register_page():
 @app.route('/dashboard')
 def dashboard_page():
     """Serve the main dashboard/admin panel."""
-    return render_template('index.html')
+    return render_template('dashboard.html')
 
 
 @app.route('/pricing')
@@ -371,6 +388,30 @@ def get_current_user():
         'user': user_payload,
         'usage': usage_payload
     })
+
+
+@app.route('/api/admin/reset-db', methods=['POST'])
+@jwt_required()
+def reset_database():
+    """Fully reset the database (admin + token required)."""
+    user = g.current_user
+    token = request.headers.get('X-Reset-Token', '')
+    required_token = os.getenv('RESET_DB_TOKEN', '').strip()
+
+    if not user or not getattr(user, 'is_admin', False):
+        return jsonify({'error': 'Admin access required'}), 403
+
+    if not required_token or token != required_token:
+        return jsonify({'error': 'Valid reset token required'}), 403
+
+    try:
+        db.session.remove()
+        db.drop_all()
+        db.create_all()
+        return jsonify({'message': 'Database reset completed'}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'Database reset failed: {str(e)}'}), 500
 
 
 @app.route('/api/user/password', methods=['PUT'])
@@ -806,6 +847,32 @@ def relist_listings():
     db.session.commit()
 
     return jsonify({'message': f'{len(listings)} listings queued for relist'})
+
+
+@app.route('/api/listings/run', methods=['POST'])
+@jwt_required()
+@FeatureGate.check_subscription()
+def run_listings():
+    """Queue selected listings to run the bot."""
+    user = g.current_user
+    data = request.json or {}
+    listing_ids = data.get('listing_ids', [])
+
+    if not listing_ids:
+        return jsonify({'error': 'No listings provided'}), 400
+
+    listings = Listing.query.filter(
+        Listing.user_id == user.id,
+        Listing.id.in_(listing_ids)
+    ).all()
+
+    for listing in listings:
+        listing.status = 'pending'
+        listing.updated_at = datetime.utcnow()
+
+    db.session.commit()
+
+    return jsonify({'message': f'Queued {len(listings)} listing(s) to run'})
 
 
 @app.route('/api/listings/randomize-locations', methods=['POST'])
