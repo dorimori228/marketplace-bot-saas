@@ -11,10 +11,15 @@ import tempfile
 from datetime import datetime
 from cryptography.fernet import Fernet
 
-# Ensure repo root is on Python path for worker imports
+# Ensure project root is on Python path for worker imports
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if BASE_DIR not in sys.path:
-    sys.path.insert(0, BASE_DIR)
+CANDIDATE_DIRS = [
+    BASE_DIR,
+    os.path.join(BASE_DIR, 'facebook-marketplace-bot')
+]
+for path in CANDIDATE_DIRS:
+    if os.path.exists(os.path.join(path, 'models.py')) and path not in sys.path:
+        sys.path.insert(0, path)
 
 # Initialize Celery
 celery = Celery('tasks',
