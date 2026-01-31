@@ -30,6 +30,27 @@ def _ensure_project_module(module_name):
 
 _ensure_project_module('models')
 _ensure_project_module('bot')
+_ensure_project_module('app_cloud')
+
+
+def _get_flask_app():
+    try:
+        from app_cloud import app as flask_app
+        return flask_app
+    except Exception:
+        from flask import Flask
+        from models import db
+
+        app = Flask(__name__)
+        db_url = (
+            os.getenv('DATABASE_URL')
+            or os.getenv('SQLALCHEMY_DATABASE_URI')
+            or 'postgresql://localhost/marketplace_bot'
+        )
+        app.config['SQLALCHEMY_DATABASE_URI'] = db_url
+        app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+        db.init_app(app)
+        return app
 
 # Initialize Celery
 celery = Celery('tasks',
@@ -61,7 +82,7 @@ def create_listing_task(self, listing_id):
     """
     from models import db, Listing, FacebookAccount, Analytics, UsageLog
     from bot import MarketplaceBot
-    from app_cloud import app
+    app = _get_flask_app()
 
     with app.app_context():
         try:
@@ -212,7 +233,7 @@ def delete_listing_task(self, listing_id):
     """
     from models import db, Listing, FacebookAccount, Analytics
     from bot import MarketplaceBot
-    from app_cloud import app
+    app = _get_flask_app()
 
     with app.app_context():
         try:
