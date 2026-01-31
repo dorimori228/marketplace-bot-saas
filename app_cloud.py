@@ -750,9 +750,12 @@ def create_listing():
 
     db.session.commit()
 
-    # TODO: Queue Celery task for bot processing
-    # from tasks.listing_tasks import create_listing_task
-    # task = create_listing_task.delay(listing.id)
+    # Queue Celery task for bot processing
+    try:
+        from tasks.listing_tasks import create_listing_task
+        create_listing_task.delay(listing.id)
+    except Exception as e:
+        print(f"⚠️ Failed to queue listing task: {e}")
 
     return jsonify({
         'message': 'Listing created and queued',
@@ -886,7 +889,16 @@ def run_listings():
 
     db.session.commit()
 
-    return jsonify({'message': f'Queued {len(listings)} listing(s) to run'})
+    queued = 0
+    try:
+        from tasks.listing_tasks import create_listing_task
+        for listing in listings:
+            create_listing_task.delay(listing.id)
+            queued += 1
+    except Exception as e:
+        print(f"⚠️ Failed to queue run tasks: {e}")
+
+    return jsonify({'message': f'Queued {queued} listing(s) to run'})
 
 
 @app.route('/api/listings/randomize-locations', methods=['POST'])
