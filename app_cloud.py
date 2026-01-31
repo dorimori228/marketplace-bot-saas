@@ -256,7 +256,7 @@ def register_page():
 @app.route('/dashboard')
 def dashboard_page():
     """Serve the main dashboard/admin panel."""
-    return render_template('dashboard.html')
+    return render_template('index.html')
 
 
 @app.route('/pricing')

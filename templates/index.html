@@ -1290,6 +1290,10 @@
                 <i class="fas fa-list"></i>
                 <span>Manage Listings</span>
             </div>
+            <div class="nav-item" onclick="showPage('run')">
+                <i class="fas fa-play-circle"></i>
+                <span>Run Bot</span>
+            </div>
             <div class="nav-item" onclick="showPage('templates')">
                 <i class="fas fa-bookmark"></i>
                 <span>Templates</span>
@@ -1679,6 +1683,70 @@
             </div>
 
             <div id="listings-container" class="listings-grid">
+                <div class="no-listings">
+                    <div class="no-listings-icon"><i class="fas fa-box-open"></i></div>
+                    <h3>No listings found</h3>
+                    <p>Select an account to view listings</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Run Bot Page -->
+        <div id="run-page" class="page-view">
+            <div class="page-header">
+                <h2><i class="fas fa-play-circle"></i> Run Bot</h2>
+                <p>Select an account and run the bot on chosen listings</p>
+            </div>
+
+            <div class="alert" id="run-alert"></div>
+
+            <div class="step-container active">
+                <div class="step-header">
+                    <div class="step-number">1</div>
+                    <div class="step-title">
+                        <h3>Select Account</h3>
+                        <p>Choose which account's listings you want to run</p>
+                    </div>
+                </div>
+
+                <div class="account-select-wrapper">
+                    <select id="run-account" class="account-select-large">
+                        <option value="">Choose an account to get started...</option>
+                    </select>
+                </div>
+            </div>
+
+            <div id="run-actions-container" class="actions-container">
+                <div class="card">
+                    <div class="card-header">
+                        <div class="card-title">
+                            <i class="fas fa-check-circle"></i> Select Listings
+                        </div>
+                    </div>
+
+                    <div class="btn-group">
+                        <button class="btn btn-secondary" onclick="selectRun20Listings()">
+                            <i class="fas fa-check-double"></i> Select 20
+                        </button>
+                        <button class="btn btn-secondary" onclick="selectRunAllListings()">
+                            <i class="fas fa-check-square"></i> Select All
+                        </button>
+                        <button class="btn btn-secondary" onclick="deselectRunAllListings()">
+                            <i class="fas fa-square"></i> Deselect All
+                        </button>
+                    </div>
+
+                    <div id="run-selected-count" class="select-count" style="display: none;"></div>
+
+                    <div class="btn-group">
+                        <button class="btn btn-success btn-full" id="run-btn" disabled onclick="runSelectedListings()">
+                            <i class="fas fa-play"></i> Run Selected
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="run-listings-container" class="listings-grid">
                 <div class="no-listings">
                     <div class="no-listings-icon"><i class="fas fa-box-open"></i></div>
                     <h3>No listings found</h3>
@@ -2098,6 +2166,9 @@
         let currentAccount = '';
         let listings = [];
         let selectedListings = new Set();
+        let runAccount = '';
+        let runListings = [];
+        let selectedRunListings = new Set();
         let currentFilter = 'all';
         let currentUser = null;
         let accountMap = new Map();
@@ -2153,6 +2224,7 @@
         function populateAccountSelects(accounts) {
             const createSelect = document.getElementById('account');
             const manageSelect = document.getElementById('manage-account');
+            const runSelect = document.getElementById('run-account');
             const activitySelect = document.getElementById('activity-account');
 
             const options = accounts.map(acc => `<option value="${acc.id}">👤 ${acc.account_name}</option>`).join('');
@@ -2162,6 +2234,9 @@
             }
             if (manageSelect) {
                 manageSelect.innerHTML = '<option value="">Choose an account to get started...</option>' + options;
+            }
+            if (runSelect) {
+                runSelect.innerHTML = '<option value="">Choose an account to get started...</option>' + options;
             }
             if (activitySelect) {
                 activitySelect.innerHTML = '<option value="">All Accounts</option>' + options;
@@ -2265,6 +2340,20 @@
                 // Hide actions container
                 actionsContainer.classList.remove('visible');
                 clearListings();
+            }
+        });
+
+        // Account selection in run page
+        document.getElementById('run-account').addEventListener('change', function() {
+            runAccount = this.value;
+            const actionsContainer = document.getElementById('run-actions-container');
+
+            if (runAccount) {
+                actionsContainer.classList.add('visible');
+                loadRunListings(runAccount);
+            } else {
+                actionsContainer.classList.remove('visible');
+                clearRunListings();
             }
         });
 
@@ -2413,6 +2502,142 @@
         function deselectAllListings() {
             selectedListings.clear();
             displayListings();
+        }
+
+        // Load listings for run page
+        async function loadRunListings(account) {
+            try {
+                const response = await authFetch(`${API_URL}/listings?account_id=${encodeURIComponent(account)}`);
+                const data = await response.json();
+                runListings = data.listings || [];
+                displayRunListings();
+            } catch (error) {
+                console.error('Error loading run listings:', error);
+                runListings = [];
+                displayRunListings();
+            }
+        }
+
+        function clearRunListings() {
+            selectedRunListings.clear();
+            runListings = [];
+            displayRunListings();
+        }
+
+        function displayRunListings(listingsToShow = runListings) {
+            const container = document.getElementById('run-listings-container');
+
+            if (!listingsToShow || listingsToShow.length === 0) {
+                container.innerHTML = `
+                    <div class="no-listings">
+                        <div class="no-listings-icon"><i class="fas fa-box-open"></i></div>
+                        <h3>No listings found</h3>
+                        <p>Select an account to view listings</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = listingsToShow.map(listing => {
+                const firstImage = (listing.images && listing.images.length > 0) ? listing.images[0].image_url : '';
+                const imageUrl = firstImage || '';
+
+                return `
+                    <div class="listing-card ${selectedRunListings.has(listing.id) ? 'selected' : ''}"
+                         onclick="toggleRunListing(${listing.id})">
+                        ${imageUrl ? `<img src="${imageUrl}" class="listing-image" alt="${listing.title}" onerror="this.style.display='none'">` : ''}
+                        <div class="listing-content">
+                            <div class="listing-header">
+                                <input type="checkbox" class="listing-checkbox"
+                                       ${selectedRunListings.has(listing.id) ? 'checked' : ''}
+                                       onclick="event.stopPropagation()">
+                            </div>
+                            <div class="listing-title">${listing.title}</div>
+                            <div class="listing-price">${listing.price}</div>
+                            <div class="listing-meta">
+                                <span><span class="badge badge-primary"><i class="fas fa-tag"></i> ${listing.category || 'Uncategorized'}</span></span>
+                                <span><i class="fas fa-calendar-alt"></i> ${new Date(listing.created_at).toLocaleDateString()}</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            updateRunSelectedCount();
+        }
+
+        function toggleRunListing(id) {
+            if (selectedRunListings.has(id)) {
+                selectedRunListings.delete(id);
+            } else {
+                selectedRunListings.add(id);
+            }
+            displayRunListings();
+        }
+
+        function updateRunSelectedCount() {
+            const countDiv = document.getElementById('run-selected-count');
+            const count = selectedRunListings.size;
+            const runBtn = document.getElementById('run-btn');
+
+            if (count > 0) {
+                countDiv.style.display = 'block';
+                countDiv.innerHTML = `<i class="fas fa-check-circle"></i> ${count} listing${count !== 1 ? 's' : ''} selected`;
+                runBtn.disabled = false;
+            } else {
+                countDiv.style.display = 'none';
+                runBtn.disabled = true;
+            }
+        }
+
+        function selectRun20Listings() {
+            selectedRunListings.clear();
+            const count = Math.min(20, runListings.length);
+            for (let i = 0; i < count; i++) {
+                selectedRunListings.add(runListings[i].id);
+            }
+            displayRunListings();
+        }
+
+        function selectRunAllListings() {
+            selectedRunListings.clear();
+            runListings.forEach(listing => selectedRunListings.add(listing.id));
+            displayRunListings();
+        }
+
+        function deselectRunAllListings() {
+            selectedRunListings.clear();
+            displayRunListings();
+        }
+
+        async function runSelectedListings() {
+            if (selectedRunListings.size === 0) return;
+
+            const btn = document.getElementById('run-btn');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner"></span> Running...';
+
+            try {
+                const response = await authFetch(`${API_URL}/listings/run`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ listing_ids: Array.from(selectedRunListings) })
+                });
+
+                const result = await response.json();
+                if (!response.ok) {
+                    throw new Error(result.error || 'Run failed');
+                }
+
+                showAlert('run-alert', 'success', result.message || 'Bot run queued');
+                selectedRunListings.clear();
+                loadRunListings(runAccount);
+            } catch (error) {
+                showAlert('run-alert', 'error', error.message || 'Error running bot');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-play"></i> Run Selected';
+            }
         }
 
         // Edit listing
