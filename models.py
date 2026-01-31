@@ -141,6 +141,7 @@ class Listing(db.Model):
     def to_dict(self, include_images=False):
         data = {
             'id': self.id,
+            'fb_account_id': self.fb_account_id,
             'title': self.title,
             'price': self.price,
             'description': self.description,

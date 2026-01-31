@@ -645,6 +645,30 @@ def sync_cookies(account_id):
     })
 
 
+@app.route('/api/accounts/<int:account_id>/cookies', methods=['GET'])
+@jwt_required()
+@FeatureGate.check_subscription()
+def get_account_cookies(account_id):
+    """Return decrypted cookies for local runner usage."""
+    user = g.current_user
+
+    account = FacebookAccount.query.filter_by(
+        id=account_id,
+        user_id=user.id
+    ).first()
+
+    if not account:
+        return jsonify({'error': 'Account not found'}), 404
+
+    try:
+        cookies_json = cipher.decrypt(account.cookies_encrypted.encode()).decode()
+        cookies = json.loads(cookies_json)
+    except Exception as e:
+        return jsonify({'error': f'Failed to decrypt cookies: {str(e)}'}), 500
+
+    return jsonify({'cookies': cookies})
+
+
 @app.route('/api/accounts/<int:account_id>', methods=['DELETE'])
 @jwt_required()
 @FeatureGate.check_subscription()
@@ -818,6 +842,41 @@ def delete_listing(listing_id):
     return jsonify({
         'message': 'Listing deleted successfully'
     })
+
+
+@app.route('/api/listings/<int:listing_id>/status', methods=['PUT'])
+@jwt_required()
+@FeatureGate.check_subscription()
+def update_listing_status(listing_id):
+    """Update listing status after local runner execution."""
+    user = g.current_user
+    data = request.json or {}
+
+    listing = Listing.query.filter_by(
+        id=listing_id,
+        user_id=user.id
+    ).first()
+
+    if not listing:
+        return jsonify({'error': 'Listing not found'}), 404
+
+    status = data.get('status')
+    if status:
+        listing.status = status
+
+    if data.get('title'):
+        listing.title = data['title']
+    if data.get('description'):
+        listing.description = data['description']
+    if data.get('error_message'):
+        listing.error_message = data['error_message']
+    if status == 'active':
+        listing.published_at = datetime.utcnow()
+
+    listing.updated_at = datetime.utcnow()
+    db.session.commit()
+
+    return jsonify({'message': 'Listing updated'})
 
 
 @app.route('/api/listings/batch-delete', methods=['POST'])
