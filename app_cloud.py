@@ -291,6 +291,11 @@ def register():
             subscription_status='active'
         )
 
+        if email in ADMIN_EMAILS:
+            user.subscription_tier = 'premium'
+            user.subscription_status = 'active'
+            user.is_admin = True
+
         db.session.add(user)
         db.session.commit()
 

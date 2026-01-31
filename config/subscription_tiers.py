@@ -141,7 +141,12 @@ def get_tier_limits(tier_name):
     Returns:
         dict: Tier limits or None if tier doesn't exist
     """
-    tier = SUBSCRIPTION_TIERS.get(tier_name.lower())
+    if not tier_name:
+        tier_name = 'basic'
+    normalized = tier_name.lower()
+    if normalized == 'free':
+        normalized = 'basic'
+    tier = SUBSCRIPTION_TIERS.get(normalized)
     return tier['limits'] if tier else None
 
 
@@ -155,7 +160,12 @@ def get_tier_info(tier_name):
     Returns:
         dict: Tier information or None if tier doesn't exist
     """
-    return SUBSCRIPTION_TIERS.get(tier_name.lower())
+    if not tier_name:
+        tier_name = 'basic'
+    normalized = tier_name.lower()
+    if normalized == 'free':
+        normalized = 'basic'
+    return SUBSCRIPTION_TIERS.get(normalized)
 
 
 def check_limit(tier_name, limit_key, current_value):
