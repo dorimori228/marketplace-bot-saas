@@ -1908,31 +1908,53 @@ class MarketplaceBot:
             else:
                 print("✅ Already on create listing page")
             
-            # Click "Item for sale" using robust selector
-            print("🔍 Looking for 'Item for sale' button...")
-            item_for_sale_selectors = [
-                "//span[text()='Item for sale']/ancestor::div[@role='button']",
-                "//span[text()='Item for sale']",
-                "//div[contains(@aria-label, 'Item for sale')]"
-            ]
-            
-            item_clicked = False
-            for selector in item_for_sale_selectors:
-                try:
-                    if selector.startswith("//"):
+            # Some layouts land directly on the item form.
+            def _listing_form_present():
+                selectors = [
+                    (By.XPATH, "//label//*[text()='Title']/ancestor::label"),
+                    (By.XPATH, "//label//*[text()='Price']/ancestor::label"),
+                    (By.XPATH, "//textarea[contains(@aria-label, 'Description')]"),
+                    (By.XPATH, "//input[contains(@aria-label, 'Title')]"),
+                    (By.XPATH, "//input[contains(@aria-label, 'Price')]")
+                ]
+                for by, selector in selectors:
+                    try:
+                        if self.driver.find_elements(by, selector):
+                            return True
+                    except Exception:
+                        continue
+                return False
+
+            if not _listing_form_present():
+                # Click "Item for sale" using robust selector
+                print("🔍 Looking for 'Item for sale' button...")
+                item_for_sale_selectors = [
+                    "//span[normalize-space()='Item for sale']/ancestor::div[@role='button']",
+                    "//span[normalize-space()='Item for Sale']/ancestor::div[@role='button']",
+                    "//span[contains(., 'Item for sale')]/ancestor::div[@role='button']",
+                    "//div[contains(@aria-label, 'Item for sale')]",
+                    "//div[contains(@aria-label, 'Item for Sale')]"
+                ]
+
+                item_clicked = False
+                for selector in item_for_sale_selectors:
+                    try:
                         element = self.wait.until(EC.element_to_be_clickable((By.XPATH, selector)))
-                    else:
-                        element = self.wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, selector)))
-                    
-                    self._safe_click(element)
-                    print("✅ Clicked 'Item for sale' button")
-                    item_clicked = True
-                    break
-                except:
-                    continue
-            
-            if not item_clicked:
-                raise Exception("Could not find 'Item for sale' button")
+                        self._safe_click(element)
+                        print("✅ Clicked 'Item for sale' button")
+                        item_clicked = True
+                        break
+                    except Exception:
+                        continue
+
+                if not item_clicked:
+                    # Fallback: go directly to item create URL
+                    print("⚠️ 'Item for sale' button not found. Opening item create URL...")
+                    self.driver.get("https://www.facebook.com/marketplace/create/item")
+                    self._sleep(3, 5)
+
+            if not _listing_form_present():
+                raise Exception("Could not reach item listing form")
             
             self._sleep(2, 3)
             
