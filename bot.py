@@ -94,6 +94,9 @@ class MarketplaceBot:
     def _init_undetected_chrome(self):
         """Initialize undetected Chrome driver."""
         options = uc.ChromeOptions()
+        chrome_bin = os.getenv('CHROME_BIN')
+        if chrome_bin:
+            options.binary_location = chrome_bin
         options.add_argument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
         options.add_argument("--disable-blink-features=AutomationControlled")
         options.add_argument("--no-sandbox")
@@ -110,6 +113,9 @@ class MarketplaceBot:
     def _init_regular_chrome(self):
         """Initialize regular Chrome driver with webdriver-manager."""
         options = ChromeOptions()
+        chrome_bin = os.getenv('CHROME_BIN')
+        if chrome_bin:
+            options.binary_location = chrome_bin
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
         options.add_argument("--disable-blink-features=AutomationControlled")
@@ -119,8 +125,9 @@ class MarketplaceBot:
         options.add_experimental_option('useAutomationExtension', False)
         if self.proxy:
             options.add_argument(f"--proxy-server={self.proxy}")
-        
-        service = Service(ChromeDriverManager().install())
+
+        chromedriver_path = os.getenv('CHROMEDRIVER_PATH')
+        service = Service(chromedriver_path) if chromedriver_path else Service(ChromeDriverManager().install())
         driver = webdriver.Chrome(service=service, options=options)
         driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
         return driver
@@ -128,6 +135,9 @@ class MarketplaceBot:
     def _init_chrome_headless(self):
         """Initialize Chrome driver in headless mode."""
         options = ChromeOptions()
+        chrome_bin = os.getenv('CHROME_BIN')
+        if chrome_bin:
+            options.binary_location = chrome_bin
         options.add_argument("--headless")
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
@@ -135,20 +145,25 @@ class MarketplaceBot:
         options.add_argument("--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
         if self.proxy:
             options.add_argument(f"--proxy-server={self.proxy}")
-        
-        service = Service(ChromeDriverManager().install())
+
+        chromedriver_path = os.getenv('CHROMEDRIVER_PATH')
+        service = Service(chromedriver_path) if chromedriver_path else Service(ChromeDriverManager().install())
         driver = webdriver.Chrome(service=service, options=options)
         return driver
 
     def _init_chrome_minimal(self):
         """Initialize Chrome driver with minimal options."""
         options = ChromeOptions()
+        chrome_bin = os.getenv('CHROME_BIN')
+        if chrome_bin:
+            options.binary_location = chrome_bin
         options.add_argument("--no-sandbox")
         options.add_argument("--disable-dev-shm-usage")
         if self.proxy:
             options.add_argument(f"--proxy-server={self.proxy}")
-        
-        service = Service(ChromeDriverManager().install())
+
+        chromedriver_path = os.getenv('CHROMEDRIVER_PATH')
+        service = Service(chromedriver_path) if chromedriver_path else Service(ChromeDriverManager().install())
         driver = webdriver.Chrome(service=service, options=options)
         return driver
 
