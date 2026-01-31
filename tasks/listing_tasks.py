@@ -8,18 +8,27 @@ import os
 import sys
 import json
 import tempfile
+import importlib
 from datetime import datetime
 from cryptography.fernet import Fernet
 
-# Ensure project root is on Python path for worker imports
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-CANDIDATE_DIRS = [
-    BASE_DIR,
-    os.path.join(BASE_DIR, 'facebook-marketplace-bot')
-]
-for path in CANDIDATE_DIRS:
-    if os.path.exists(os.path.join(path, 'models.py')) and path not in sys.path:
-        sys.path.insert(0, path)
+def _ensure_project_module(module_name):
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    candidate_dirs = [
+        base_dir,
+        os.path.join(base_dir, 'facebook-marketplace-bot')
+    ]
+    for path in candidate_dirs:
+        if os.path.exists(os.path.join(path, f'{module_name}.py')) and path not in sys.path:
+            sys.path.insert(0, path)
+            return
+    try:
+        importlib.import_module(module_name)
+    except ModuleNotFoundError:
+        pass
+
+
+_ensure_project_module('models')
 
 # Initialize Celery
 celery = Celery('tasks',

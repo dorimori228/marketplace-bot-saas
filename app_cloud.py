@@ -15,6 +15,7 @@ from datetime import datetime, timedelta
 from urllib.parse import urlparse, urlunparse, parse_qsl, urlencode
 from cryptography.fernet import Fernet
 import os
+import sys
 import json
 
 # Import models and utilities
@@ -28,6 +29,11 @@ app = Flask(__name__,
             template_folder='templates',
             static_folder='static',
             static_url_path='/assets')
+
+# Ensure repo root (or nested project) is on the path for workers/imports.
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+if BASE_DIR not in sys.path:
+    sys.path.insert(0, BASE_DIR)
 
 # Configuration
 def _get_database_url():
