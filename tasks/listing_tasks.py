@@ -5,10 +5,16 @@ Handles asynchronous bot operations for creating, deleting, and relisting items.
 
 from celery import Celery
 import os
+import sys
 import json
 import tempfile
 from datetime import datetime
 from cryptography.fernet import Fernet
+
+# Ensure repo root is on Python path for worker imports
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if BASE_DIR not in sys.path:
+    sys.path.insert(0, BASE_DIR)
 
 # Initialize Celery
 celery = Celery('tasks',
