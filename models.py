@@ -50,6 +50,7 @@ class User(db.Model):
             'email': self.email,
             'subscription_tier': self.subscription_tier,
             'subscription_status': self.subscription_status,
+            'subscription_expires_at': self.subscription_expires_at.isoformat() if self.subscription_expires_at else None,
             'is_admin': self.is_admin or False,
             'created_at': self.created_at.isoformat() if self.created_at else None
         }

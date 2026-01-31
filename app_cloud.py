@@ -287,13 +287,15 @@ def register():
         user = User(
             email=email,
             password_hash=generate_password_hash(password),
-            subscription_tier='free',
-            subscription_status='active'
+            subscription_tier='basic',
+            subscription_status='trialing',
+            subscription_expires_at=datetime.utcnow() + timedelta(days=7)
         )
 
         if email in ADMIN_EMAILS:
             user.subscription_tier = 'premium'
             user.subscription_status = 'active'
+            user.subscription_expires_at = None
             user.is_admin = True
 
         db.session.add(user)
@@ -381,6 +383,13 @@ def get_current_user():
     user = User.query.get(user_id)
     if not user:
         return jsonify({'error': 'Invalid or expired token'}), 401
+
+    if user.subscription_status == 'trialing' and user.subscription_expires_at:
+        if user.subscription_expires_at < datetime.utcnow():
+            user.subscription_status = 'inactive'
+            user.subscription_tier = user.subscription_tier or 'basic'
+            user.updated_at = datetime.utcnow()
+            db.session.commit()
 
     try:
         user_payload = user.to_dict()

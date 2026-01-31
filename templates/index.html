@@ -234,12 +234,84 @@
             box-shadow: var(--shadow-lg);
         }
 
+        .subscription-card {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .subscription-summary {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 20px;
+        }
+
+        .subscription-label {
+            font-size: 13px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-bottom: 6px;
+        }
+
+        .subscription-tier {
+            font-size: 28px;
+            font-weight: 800;
+            color: var(--text-primary);
+        }
+
+        .subscription-meta {
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin-top: 6px;
+        }
+
+        .subscription-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(240, 240, 219, 0.95);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 32px;
+            z-index: 200;
+            text-align: center;
+            border-radius: 16px;
+            box-shadow: var(--shadow-lg);
+        }
+
+        .subscription-overlay.hidden {
+            display: none;
+        }
+
+        .subscription-overlay-content {
+            max-width: 520px;
+            background: white;
+            border-radius: 16px;
+            padding: 32px;
+            border: 2px solid var(--border);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .subscription-overlay-content h3 {
+            font-size: 22px;
+            font-weight: 800;
+            margin-bottom: 12px;
+        }
+
+        .subscription-overlay-content p {
+            color: var(--text-secondary);
+            margin-bottom: 20px;
+        }
+
         /* Main Content */
         .main-content {
             flex: 1;
             margin-left: 280px;
             padding: 40px;
             transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
         }
 
         .page-view {
@@ -249,6 +321,16 @@
 
         .page-view.active {
             display: block;
+        }
+
+        .main-content.subscription-locked .page-view {
+            filter: blur(2px);
+            pointer-events: none;
+        }
+
+        .main-content.subscription-locked #subscription-page {
+            filter: none;
+            pointer-events: auto;
         }
 
         @keyframes fadeIn {
@@ -844,6 +926,11 @@
             color: var(--navy);
         }
 
+        .badge-premium {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
         .select-count {
             padding: 12px 20px;
             background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
@@ -1306,6 +1393,10 @@
                 <i class="fas fa-history"></i>
                 <span>Activity Log</span>
             </div>
+            <div class="nav-item" data-nav="subscription" onclick="showPage('subscription')">
+                <i class="fas fa-crown"></i>
+                <span>Subscription</span>
+            </div>
             <div class="nav-item" onclick="showPage('accounts')">
                 <i class="fas fa-user-circle"></i>
                 <span>Accounts</span>
@@ -1334,6 +1425,15 @@
 
     <!-- Main Content -->
     <div class="main-content">
+        <div id="subscription-overlay" class="subscription-overlay hidden">
+            <div class="subscription-overlay-content">
+                <h3 id="subscription-overlay-title">Subscription Required</h3>
+                <p id="subscription-overlay-message">Upgrade your plan to continue using PandaBay features.</p>
+                <button class="btn btn-primary btn-large" onclick="showPage('subscription', document.querySelector('[data-nav=\"subscription\"]'))">
+                    View Plans
+                </button>
+            </div>
+        </div>
         <!-- Home Page -->
         <div id="home-page" class="page-view active">
             <div class="home-hero">
@@ -2159,6 +2259,83 @@
                 </div>
             </div>
         </div>
+
+        <!-- Subscription Page -->
+        <div id="subscription-page" class="page-view">
+            <div class="page-header">
+                <h2><i class="fas fa-crown"></i> Subscription</h2>
+                <p>View your current plan, start a trial, or upgrade</p>
+            </div>
+
+            <div id="subscription-alert" class="alert"></div>
+
+            <div class="card subscription-card">
+                <div class="subscription-summary">
+                    <div>
+                        <div class="subscription-label">Current Subscription</div>
+                        <div id="subscription-current" class="subscription-tier">Loading...</div>
+                        <div id="subscription-status" class="subscription-meta"></div>
+                        <div id="subscription-renewal" class="subscription-meta"></div>
+                    </div>
+                    <span id="subscription-badge" class="badge badge-primary">Plan</span>
+                </div>
+                <div class="btn-group">
+                    <button class="btn btn-secondary" onclick="openCustomerPortal()">
+                        <i class="fas fa-sliders-h"></i> Manage Subscription
+                    </button>
+                    <button class="btn btn-primary" onclick="startCheckout('premium')">
+                        <i class="fas fa-rocket"></i> Upgrade to Premium
+                    </button>
+                </div>
+            </div>
+
+            <div class="grid grid-3">
+                <div class="card" style="text-align: center;">
+                    <h3 style="font-size: 24px; font-weight: 700; margin-bottom: 8px;">Basic</h3>
+                    <div style="font-size: 36px; font-weight: 800; margin-bottom: 16px;">
+                        <span style="font-size: 20px;">£</span>15<span style="font-size: 16px; color: var(--text-secondary);">/mo</span>
+                    </div>
+                    <ul style="text-align: left; list-style: none; margin-bottom: 24px;">
+                        <li style="padding: 8px 0; border-bottom: 1px solid var(--border);">3 Facebook accounts</li>
+                        <li style="padding: 8px 0; border-bottom: 1px solid var(--border);">100 listings/month</li>
+                        <li style="padding: 8px 0; border-bottom: 1px solid var(--border);">Basic analytics</li>
+                        <li style="padding: 8px 0;">Email support</li>
+                    </ul>
+                    <button class="btn btn-secondary btn-full" onclick="startCheckout('basic')">Choose Basic</button>
+                </div>
+
+                <div class="card" style="text-align: center; border: 2px solid var(--primary);">
+                    <span class="badge badge-premium" style="margin-bottom: 12px;">Most Popular</span>
+                    <h3 style="font-size: 24px; font-weight: 700; margin-bottom: 8px;">Pro</h3>
+                    <div style="font-size: 36px; font-weight: 800; margin-bottom: 16px;">
+                        <span style="font-size: 20px;">£</span>30<span style="font-size: 16px; color: var(--text-secondary);">/mo</span>
+                    </div>
+                    <ul style="text-align: left; list-style: none; margin-bottom: 24px;">
+                        <li style="padding: 8px 0; border-bottom: 1px solid var(--border);">10 Facebook accounts</li>
+                        <li style="padding: 8px 0; border-bottom: 1px solid var(--border);">500 listings/month</li>
+                        <li style="padding: 8px 0; border-bottom: 1px solid var(--border);">Batch operations</li>
+                        <li style="padding: 8px 0; border-bottom: 1px solid var(--border);">Templates</li>
+                        <li style="padding: 8px 0;">Priority support</li>
+                    </ul>
+                    <button class="btn btn-primary btn-full" onclick="startCheckout('pro')">Choose Pro</button>
+                </div>
+
+                <div class="card" style="text-align: center;">
+                    <h3 style="font-size: 24px; font-weight: 700; margin-bottom: 8px;">Premium</h3>
+                    <div style="font-size: 36px; font-weight: 800; margin-bottom: 16px;">
+                        <span style="font-size: 20px;">£</span>50<span style="font-size: 16px; color: var(--text-secondary);">/mo</span>
+                    </div>
+                    <ul style="text-align: left; list-style: none; margin-bottom: 24px;">
+                        <li style="padding: 8px 0; border-bottom: 1px solid var(--border);">Unlimited accounts</li>
+                        <li style="padding: 8px 0; border-bottom: 1px solid var(--border);">Unlimited listings</li>
+                        <li style="padding: 8px 0; border-bottom: 1px solid var(--border);">AI-powered features</li>
+                        <li style="padding: 8px 0; border-bottom: 1px solid var(--border);">All Pro features</li>
+                        <li style="padding: 8px 0;">24/7 Priority support</li>
+                    </ul>
+                    <button class="btn btn-success btn-full" onclick="startCheckout('premium')">Choose Premium</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -2173,6 +2350,7 @@
         let currentUser = null;
         let accountMap = new Map();
         let templatesCache = [];
+        let currentPageId = 'home';
 
         const API_URL = window.location.origin + '/api';
 
@@ -2206,6 +2384,7 @@
                 const data = await response.json();
                 currentUser = data.user;
                 updatePlanBadge(currentUser);
+                updateSubscriptionUI(currentUser);
             } catch (error) {
                 localStorage.removeItem('access_token');
                 localStorage.removeItem('refresh_token');
@@ -2216,8 +2395,120 @@
         function updatePlanBadge(user) {
             const planLabel = document.getElementById('plan-label');
             if (planLabel) {
+                const status = (user.subscription_status || 'inactive').toLowerCase();
                 const tier = (user.is_admin ? 'premium' : (user.subscription_tier || 'free')).toLowerCase();
-                planLabel.textContent = `Current Plan: ${tier.charAt(0).toUpperCase() + tier.slice(1)}`;
+                const label = status === 'trialing' ? 'Trial' : tier.charAt(0).toUpperCase() + tier.slice(1);
+                planLabel.textContent = `Current Plan: ${label}`;
+            }
+        }
+
+        function updateSubscriptionUI(user) {
+            const tier = (user.is_admin ? 'premium' : (user.subscription_tier || 'free')).toLowerCase();
+            const status = (user.subscription_status || 'inactive').toLowerCase();
+            const expiresAtRaw = user.subscription_expires_at;
+            const expiresAt = expiresAtRaw ? new Date(expiresAtRaw) : null;
+
+            const currentEl = document.getElementById('subscription-current');
+            const statusEl = document.getElementById('subscription-status');
+            const renewalEl = document.getElementById('subscription-renewal');
+            const badgeEl = document.getElementById('subscription-badge');
+
+            if (currentEl) {
+                const label = status === 'trialing' ? 'Trial' : (tier === 'free' ? 'Trial' : tier.charAt(0).toUpperCase() + tier.slice(1));
+                currentEl.textContent = user.is_admin ? 'Premium (Admin)' : label;
+            }
+
+            if (statusEl) {
+                statusEl.textContent = `Status: ${status.charAt(0).toUpperCase() + status.slice(1)}`;
+            }
+
+            if (renewalEl) {
+                if (status === 'trialing' && expiresAt) {
+                    const msLeft = expiresAt - new Date();
+                    const daysLeft = Math.max(0, Math.ceil(msLeft / (1000 * 60 * 60 * 24)));
+                    renewalEl.textContent = `Trial ends in ${daysLeft} day${daysLeft !== 1 ? 's' : ''}`;
+                } else if (status === 'active') {
+                    renewalEl.textContent = 'Subscription active';
+                } else if (status === 'inactive') {
+                    renewalEl.textContent = 'No active subscription';
+                } else {
+                    renewalEl.textContent = '';
+                }
+            }
+
+            if (badgeEl) {
+                const badgeLabel = status === 'trialing' ? 'Trial' : (tier === 'free' ? 'Trial' : tier.charAt(0).toUpperCase() + tier.slice(1));
+                badgeEl.textContent = user.is_admin ? 'Premium' : badgeLabel;
+            }
+
+            const isTrialExpired = expiresAt && expiresAt < new Date();
+            const locked = !user.is_admin && (isTrialExpired || status === 'inactive' || status === 'canceled');
+            const overlayTitle = document.getElementById('subscription-overlay-title');
+            const overlayMessage = document.getElementById('subscription-overlay-message');
+            if (overlayTitle && overlayMessage) {
+                if (isTrialExpired) {
+                    overlayTitle.textContent = 'Your trial has ended';
+                    overlayMessage.textContent = 'Upgrade your plan to continue using PandaBay features.';
+                } else if (status === 'inactive' || status === 'canceled') {
+                    overlayTitle.textContent = 'Subscription inactive';
+                    overlayMessage.textContent = 'Choose a plan to unlock full access to the dashboard.';
+                } else {
+                    overlayTitle.textContent = 'Subscription required';
+                    overlayMessage.textContent = 'Upgrade your plan to continue using PandaBay features.';
+                }
+            }
+            applySubscriptionLock(locked);
+        }
+
+        function applySubscriptionLock(locked) {
+            const mainContent = document.querySelector('.main-content');
+            const overlay = document.getElementById('subscription-overlay');
+            if (!mainContent || !overlay) return;
+
+            const showOverlay = locked && currentPageId !== 'subscription';
+            mainContent.classList.toggle('subscription-locked', locked);
+            overlay.classList.toggle('hidden', !showOverlay);
+        }
+
+        async function startCheckout(tier) {
+            const alertId = 'subscription-alert';
+            try {
+                const response = await authFetch(`${API_URL}/subscription/create-checkout`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        tier,
+                        success_url: `${window.location.origin}/dashboard`,
+                        cancel_url: `${window.location.origin}/dashboard`
+                    })
+                });
+                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data.error || 'Checkout failed');
+                }
+                window.location.href = data.url;
+            } catch (error) {
+                showAlert(alertId, 'error', error.message || 'Unable to start checkout');
+            }
+        }
+
+        async function openCustomerPortal() {
+            const alertId = 'subscription-alert';
+            try {
+                const response = await authFetch(`${API_URL}/subscription/portal`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        return_url: `${window.location.origin}/dashboard`
+                    })
+                });
+                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data.error || 'Unable to open portal');
+                }
+                window.location.href = data.url;
+            } catch (error) {
+                showAlert(alertId, 'error', error.message || 'Unable to open portal');
             }
         }
 
@@ -2270,7 +2561,7 @@
         ];
 
         // Navigation
-        function showPage(pageId) {
+        function showPage(pageId, navElement = null) {
             document.querySelectorAll('.page-view').forEach(page => {
                 page.classList.remove('active');
             });
@@ -2279,7 +2570,14 @@
             });
 
             document.getElementById(pageId + '-page').classList.add('active');
-            event.target.closest('.nav-item').classList.add('active');
+            const targetNav = navElement || (typeof event !== 'undefined' ? event.target.closest('.nav-item') : null);
+            if (targetNav) {
+                targetNav.classList.add('active');
+            }
+            currentPageId = pageId;
+            if (currentUser) {
+                updateSubscriptionUI(currentUser);
+            }
         }
 
         // Randomize location
