@@ -29,6 +29,7 @@ def _ensure_project_module(module_name):
 
 
 _ensure_project_module('models')
+_ensure_project_module('bot')
 
 # Initialize Celery
 celery = Celery('tasks',
