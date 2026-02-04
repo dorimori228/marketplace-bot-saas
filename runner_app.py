@@ -243,6 +243,7 @@ def login():
         "email": email,
         "access_token": payload.get("access_token")
     })
+    start_runner()
     return jsonify({"message": "Logged in"})
 
 
@@ -314,6 +315,8 @@ def launch_gui():
         try:
             login_with_credentials(email_var.get().strip(), password_var.get().strip())
             messagebox.showinfo("Login", "Logged in successfully")
+            start_runner()
+            open_admin()
         except Exception as exc:
             messagebox.showerror("Login Failed", str(exc))
 

@@ -1960,18 +1960,18 @@ class MarketplaceBot:
                 print("✅ Already on create listing page")
             
             # Some layouts land directly on the item form.
-            def _listing_form_present():
+            def _listing_form_present(timeout=3):
                 selectors = [
-                    (By.XPATH, "//label//*[text()='Title']/ancestor::label"),
-                    (By.XPATH, "//label//*[text()='Price']/ancestor::label"),
+                    (By.XPATH, "//label//*[normalize-space()='Title']/ancestor::label"),
+                    (By.XPATH, "//label//*[normalize-space()='Price']/ancestor::label"),
                     (By.XPATH, "//textarea[contains(@aria-label, 'Description')]"),
                     (By.XPATH, "//input[contains(@aria-label, 'Title')]"),
                     (By.XPATH, "//input[contains(@aria-label, 'Price')]")
                 ]
                 for by, selector in selectors:
                     try:
-                        if self.driver.find_elements(by, selector):
-                            return True
+                        self.wait.until(EC.presence_of_element_located((by, selector)))
+                        return True
                     except Exception:
                         continue
                 return False
@@ -2004,7 +2004,15 @@ class MarketplaceBot:
                     self.driver.get("https://www.facebook.com/marketplace/create/item")
                     self._sleep(3, 5)
 
-            if not _listing_form_present():
+            form_ready = _listing_form_present(timeout=4)
+            if not form_ready:
+                # Retry once with a hard refresh and alternate URL
+                print("⚠️ Listing form not detected, retrying...")
+                self.driver.get("https://www.facebook.com/marketplace/create/item?ref=bookmark")
+                self._sleep(4, 6)
+                form_ready = _listing_form_present(timeout=6)
+
+            if not form_ready:
                 raise Exception("Could not reach item listing form")
             
             self._sleep(2, 3)

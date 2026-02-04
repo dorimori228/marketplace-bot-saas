@@ -186,6 +186,8 @@
                 status.textContent = result.error;
             } else {
                 status.textContent = "Logged in!";
+                await startRunner();
+                openAdmin();
             }
         }
 
