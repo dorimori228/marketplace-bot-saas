@@ -6,6 +6,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.options import Options as ChromeOptions
 from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
+from webdriver_manager.core.utils import get_browser_version_from_os
 from selenium.common.exceptions import TimeoutException, NoSuchElementException, WebDriverException
 from selenium.webdriver.common.keys import Keys
 import time
@@ -65,12 +66,14 @@ class MarketplaceBot:
 
     def _initialize_driver(self):
         """Initialize Chrome driver with multiple fallback methods."""
+        skip_undetected = os.getenv("BOT_SKIP_UNDETECTED", "").lower() in ["1", "true", "yes", "on"]
         initialization_methods = [
-            self._init_undetected_chrome,
             self._init_regular_chrome,
             self._init_chrome_headless,
             self._init_chrome_minimal
         ]
+        if not skip_undetected:
+            initialization_methods.insert(0, self._init_undetected_chrome)
         
         for i, init_method in enumerate(initialization_methods):
             try:
@@ -110,6 +113,18 @@ class MarketplaceBot:
         driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
         return driver
 
+    def _get_local_chrome_major(self):
+        """Try to detect installed Chrome/Chromium major version."""
+        candidates = ["google-chrome", "chrome", "chromium"]
+        for name in candidates:
+            try:
+                version = get_browser_version_from_os(name)
+                if version:
+                    return version.split(".")[0]
+            except Exception:
+                continue
+        return None
+
     def _init_regular_chrome(self):
         """Initialize regular Chrome driver with webdriver-manager."""
         options = ChromeOptions()
@@ -127,7 +142,12 @@ class MarketplaceBot:
             options.add_argument(f"--proxy-server={self.proxy}")
 
         chromedriver_path = os.getenv('CHROMEDRIVER_PATH')
-        service = Service(chromedriver_path) if chromedriver_path else Service(ChromeDriverManager().install())
+        if chromedriver_path:
+            service = Service(chromedriver_path)
+        else:
+            major = self._get_local_chrome_major()
+            driver_mgr = ChromeDriverManager(version=major) if major else ChromeDriverManager()
+            service = Service(driver_mgr.install())
         driver = webdriver.Chrome(service=service, options=options)
         driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
         return driver
@@ -147,7 +167,12 @@ class MarketplaceBot:
             options.add_argument(f"--proxy-server={self.proxy}")
 
         chromedriver_path = os.getenv('CHROMEDRIVER_PATH')
-        service = Service(chromedriver_path) if chromedriver_path else Service(ChromeDriverManager().install())
+        if chromedriver_path:
+            service = Service(chromedriver_path)
+        else:
+            major = self._get_local_chrome_major()
+            driver_mgr = ChromeDriverManager(version=major) if major else ChromeDriverManager()
+            service = Service(driver_mgr.install())
         driver = webdriver.Chrome(service=service, options=options)
         return driver
 
@@ -163,7 +188,12 @@ class MarketplaceBot:
             options.add_argument(f"--proxy-server={self.proxy}")
 
         chromedriver_path = os.getenv('CHROMEDRIVER_PATH')
-        service = Service(chromedriver_path) if chromedriver_path else Service(ChromeDriverManager().install())
+        if chromedriver_path:
+            service = Service(chromedriver_path)
+        else:
+            major = self._get_local_chrome_major()
+            driver_mgr = ChromeDriverManager(version=major) if major else ChromeDriverManager()
+            service = Service(driver_mgr.install())
         driver = webdriver.Chrome(service=service, options=options)
         return driver
 
@@ -261,17 +291,33 @@ class MarketplaceBot:
                     # Ensure cookie has required fields
                     if not cookie.get('name') or not cookie.get('value'):
                         continue
-                    
-                    # Set domain if not present or incorrect
-                    if not cookie.get('domain') or cookie.get('domain') != '.facebook.com':
-                        cookie['domain'] = '.facebook.com'
-                    
-                    # Set path if not present
-                    if not cookie.get('path'):
-                        cookie['path'] = '/'
-                    
+
+                    sanitized = {
+                        'name': cookie.get('name'),
+                        'value': cookie.get('value'),
+                        'domain': cookie.get('domain') or '.facebook.com',
+                        'path': cookie.get('path') or '/'
+                    }
+
+                    # Normalize expiry
+                    expiry = cookie.get('expiry') or cookie.get('expirationDate')
+                    if expiry:
+                        try:
+                            sanitized['expiry'] = int(float(expiry))
+                        except Exception:
+                            pass
+
+                    # Normalize sameSite
+                    same_site = cookie.get('sameSite')
+                    if same_site:
+                        normalized = str(same_site).lower()
+                        if normalized in ['no_restriction', 'none']:
+                            sanitized['sameSite'] = 'None'
+                        elif normalized in ['lax', 'strict']:
+                            sanitized['sameSite'] = normalized.capitalize()
+
                     # Add the cookie
-                    self.driver.add_cookie(cookie)
+                    self.driver.add_cookie(sanitized)
                     successful_cookies += 1
                     
                 except Exception as e:
