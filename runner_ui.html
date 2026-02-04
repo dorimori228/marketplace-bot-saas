@@ -156,6 +156,7 @@
                 <div style="display: flex; gap: 10px;">
                     <button class="btn btn-primary" onclick="startRunner()">Start</button>
                     <button class="btn btn-secondary" onclick="stopRunner()">Stop</button>
+                    <button class="btn btn-secondary" onclick="openAdmin()">Open Admin Panel</button>
                 </div>
             </div>
         </div>
@@ -202,6 +203,10 @@
             const status = await api("/api/status");
             const pill = document.getElementById("runner-status");
             pill.textContent = status.running ? "Running" : "Stopped";
+        }
+
+        function openAdmin() {
+            window.open("https://marketplace-bot-saas-production.up.railway.app/dashboard", "_blank");
         }
 
         async function refreshLogs() {

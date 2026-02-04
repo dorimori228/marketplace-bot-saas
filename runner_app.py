@@ -3,8 +3,9 @@ import json
 import time
 import threading
 import tempfile
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
+import sys
 
 import requests
 from flask import Flask, request, jsonify, send_from_directory
@@ -12,6 +13,7 @@ from flask import Flask, request, jsonify, send_from_directory
 from bot import MarketplaceBot
 
 API_URL = os.getenv("API_URL", "https://marketplace-bot-saas-production.up.railway.app/api")
+FRONTEND_URL = os.getenv("FRONTEND_URL", "https://marketplace-bot-saas-production.up.railway.app")
 POLL_INTERVAL = int(os.getenv("POLL_INTERVAL", "10"))
 
 APP_DIR = Path.home() / ".pandabay"
@@ -23,10 +25,11 @@ app = Flask(__name__)
 runner_thread = None
 runner_stop = threading.Event()
 log_buffer = []
+last_empty_log = 0
 
 
 def log(message):
-    timestamp = datetime.utcnow().strftime("%H:%M:%S")
+    timestamp = datetime.now(timezone.utc).strftime("%H:%M:%S")
     line = f"[{timestamp}] {message}"
     log_buffer.append(line)
     if len(log_buffer) > 200:
@@ -179,6 +182,7 @@ def run_listing(listing):
 
 
 def runner_loop():
+    global last_empty_log
     log("Runner started.")
     while not runner_stop.is_set():
         try:
@@ -187,6 +191,11 @@ def runner_loop():
                 log(f"Found {len(listings)} pending listing(s).")
             for listing in listings:
                 run_listing(listing)
+            if not listings:
+                now = time.time()
+                if now - last_empty_log > 60:
+                    log("No pending listings. Waiting...")
+                    last_empty_log = now
         except Exception as exc:
             log(f"Runner error: {exc}")
         time.sleep(POLL_INTERVAL)
@@ -237,6 +246,21 @@ def login():
     return jsonify({"message": "Logged in"})
 
 
+def login_with_credentials(email, password):
+    response = requests.post(
+        f"{API_URL}/auth/login",
+        json={"email": email, "password": password},
+        timeout=30
+    )
+    payload = response.json()
+    if not response.ok:
+        raise Exception(payload.get("error", "Login failed"))
+    save_state({
+        "email": email,
+        "access_token": payload.get("access_token")
+    })
+
+
 @app.route("/api/start", methods=["POST"])
 def start():
     global runner_thread
@@ -254,7 +278,102 @@ def stop():
     return jsonify({"message": "Runner stopping"})
 
 
+def start_runner():
+    global runner_thread
+    if runner_thread and runner_thread.is_alive():
+        return
+    runner_stop.clear()
+    runner_thread = threading.Thread(target=runner_loop, daemon=True)
+    runner_thread.start()
+
+
+def stop_runner():
+    runner_stop.set()
+
+
+def launch_gui():
+    import tkinter as tk
+    from tkinter import messagebox
+
+    root = tk.Tk()
+    root.title("PandaBay Runner")
+    root.geometry("720x520")
+    root.configure(bg="#F0F0DB")
+
+    def refresh_logs():
+        logs_text.delete("1.0", tk.END)
+        logs_text.insert(tk.END, "\n".join(log_buffer[-200:]))
+        root.after(2000, refresh_logs)
+
+    def refresh_status():
+        running = runner_thread is not None and runner_thread.is_alive()
+        status_var.set("Running" if running else "Stopped")
+        root.after(3000, refresh_status)
+
+    def on_login():
+        try:
+            login_with_credentials(email_var.get().strip(), password_var.get().strip())
+            messagebox.showinfo("Login", "Logged in successfully")
+        except Exception as exc:
+            messagebox.showerror("Login Failed", str(exc))
+
+    def on_start():
+        start_runner()
+        refresh_status()
+
+    def on_stop():
+        stop_runner()
+        refresh_status()
+
+    def open_admin():
+        import webbrowser
+        webbrowser.open(f"{FRONTEND_URL}/dashboard")
+
+    header = tk.Frame(root, bg="#30364F", padx=16, pady=16)
+    header.pack(fill="x")
+    tk.Label(header, text="PandaBay Runner", fg="white", bg="#30364F",
+             font=("Segoe UI", 16, "bold")).pack(anchor="w")
+    tk.Label(header, text="Run listings locally with visible Chrome", fg="#E1D9BC",
+             bg="#30364F").pack(anchor="w")
+
+    content = tk.Frame(root, bg="#F0F0DB", padx=16, pady=16)
+    content.pack(fill="both", expand=True)
+
+    form = tk.Frame(content, bg="#fafaf8", padx=16, pady=16, highlightbackground="#ACBAC4", highlightthickness=1)
+    form.pack(fill="x")
+
+    email_var = tk.StringVar()
+    password_var = tk.StringVar()
+    status_var = tk.StringVar(value="Stopped")
+
+    tk.Label(form, text="Email", bg="#fafaf8").grid(row=0, column=0, sticky="w")
+    tk.Entry(form, textvariable=email_var, width=40).grid(row=1, column=0, sticky="w")
+    tk.Label(form, text="Password", bg="#fafaf8").grid(row=2, column=0, sticky="w", pady=(10, 0))
+    tk.Entry(form, textvariable=password_var, show="*", width=40).grid(row=3, column=0, sticky="w")
+    tk.Button(form, text="Sign In", command=on_login, bg="#30364F", fg="white").grid(row=1, column=1, padx=12)
+
+    controls = tk.Frame(content, bg="#F0F0DB", pady=12)
+    controls.pack(fill="x")
+    tk.Label(controls, text="Status:", bg="#F0F0DB").pack(side="left")
+    tk.Label(controls, textvariable=status_var, bg="#F0F0DB", fg="#30364F", font=("Segoe UI", 10, "bold")).pack(side="left", padx=6)
+    tk.Button(controls, text="Start", command=on_start, bg="#30364F", fg="white").pack(side="right", padx=6)
+    tk.Button(controls, text="Stop", command=on_stop).pack(side="right", padx=6)
+    tk.Button(controls, text="Open Admin Panel", command=open_admin).pack(side="right", padx=6)
+
+    logs_frame = tk.Frame(content, bg="#fafaf8", padx=10, pady=10, highlightbackground="#ACBAC4", highlightthickness=1)
+    logs_frame.pack(fill="both", expand=True)
+    logs_text = tk.Text(logs_frame, height=12, bg="#111827", fg="#e2e8f0")
+    logs_text.pack(fill="both", expand=True)
+
+    refresh_logs()
+    refresh_status()
+    root.mainloop()
+
+
 if __name__ == "__main__":
-    import webbrowser
-    webbrowser.open("http://127.0.0.1:5055")
-    app.run(host="127.0.0.1", port=5055)
+    if "--gui" in sys.argv:
+        launch_gui()
+    else:
+        import webbrowser
+        webbrowser.open("http://127.0.0.1:5055")
+        app.run(host="127.0.0.1", port=5055)
