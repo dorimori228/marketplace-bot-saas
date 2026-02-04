@@ -6,7 +6,10 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.options import Options as ChromeOptions
 from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
-from webdriver_manager.core.utils import get_browser_version_from_os
+try:
+    from webdriver_manager.core.utils import get_browser_version_from_os
+except Exception:
+    get_browser_version_from_os = None
 from selenium.common.exceptions import TimeoutException, NoSuchElementException, WebDriverException
 from selenium.webdriver.common.keys import Keys
 import time
@@ -115,6 +118,8 @@ class MarketplaceBot:
 
     def _get_local_chrome_major(self):
         """Try to detect installed Chrome/Chromium major version."""
+        if not get_browser_version_from_os:
+            return None
         candidates = ["google-chrome", "chrome", "chromium"]
         for name in candidates:
             try:
